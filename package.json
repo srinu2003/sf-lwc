@@ -1,0 +1,10 @@
+{
+  "name": "sf-lwc",
+  "version": "0.1.0",
+  "description": "Add open-source LWC components (and their Apex, labels, and dependencies) to a Salesforce DX project.",
+  "type": "module",
+  "bin": { "sf-lwc": "bin/sf-lwc.js" },
+  "engines": { "node": ">=18" },
+  "files": ["bin", "src", "schema"],
+  "license": "MIT"
+}

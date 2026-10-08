@@ -1,0 +1,9 @@
+<template>
+    <template lwc:if={isEmpty}>
+        <p class="slds-p-around_small">{label.NO_RECORDS}</p>
+    </template>
+    <template lwc:else>
+        <lightning-datatable key-field="Id" data={rows} columns={columns} hide-checkbox-column>
+        </lightning-datatable>
+    </template>
+</template>

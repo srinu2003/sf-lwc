@@ -1,0 +1,24 @@
+{
+  "name": "data-table",
+  "version": "1.0.0",
+  "description": "Config-driven record table backed by an Apex controller.",
+  "apiVersion": "62.0",
+  "dependencies": ["toast-utils"],
+  "files": [
+    "lwc/dataTable/dataTable.html",
+    "lwc/dataTable/dataTable.js",
+    "lwc/dataTable/dataTable.js-meta.xml",
+    "classes/DataTableController.cls",
+    "classes/DataTableController.cls-meta.xml",
+    "classes/DataTableControllerTest.cls",
+    "classes/DataTableControllerTest.cls-meta.xml"
+  ],
+  "labels": [
+    { "fullName": "DataTable_NoRecords", "value": "No records to display", "shortDescription": "data-table empty state" },
+    { "fullName": "DataTable_InvalidObject", "value": "Invalid object or fields", "shortDescription": "data-table config error" }
+  ],
+  "notes": [
+    "Users need read access to the object and fields shown (grant via a permission set).",
+    "Add the component to a Lightning page and set objectApiName and columns."
+  ]
+}

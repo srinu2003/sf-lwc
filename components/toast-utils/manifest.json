@@ -1,0 +1,10 @@
+{
+  "name": "toast-utils",
+  "version": "1.0.0",
+  "description": "Tiny helper for showing toast messages from any LWC.",
+  "apiVersion": "62.0",
+  "files": [
+    "lwc/toastUtils/toastUtils.js",
+    "lwc/toastUtils/toastUtils.js-meta.xml"
+  ]
+}
