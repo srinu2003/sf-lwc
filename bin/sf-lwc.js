@@ -4,11 +4,14 @@ import { createSource } from '../src/source.js';
 import { resolve } from '../src/resolve.js';
 import { findProject } from '../src/project.js';
 import { install } from '../src/install.js';
+import { listComponents, formatComponentList } from '../src/list.js';
 
 const HELP = `sf-lwc — add open-source LWC components to a Salesforce DX project
 
 Usage:
   sf-lwc add <component...> [options]
+  sf-lwc list [options]
+  sf-lwc ls [options]
 
 Options:
   --from <registry>   owner/repo[@ref] on GitHub, or a local path
@@ -32,24 +35,31 @@ async function main() {
   });
   const [cmd, ...names] = positionals;
   if (values.help || !cmd) return console.log(HELP);
-  if (cmd !== 'add') throw new Error(`Unknown command "${cmd}". Try --help.`);
-  if (!names.length) throw new Error('Specify at least one component, e.g. sf-lwc add data-table');
+  if (!['add', 'list', 'ls'].includes(cmd)) throw new Error(`Unknown command "${cmd}". Try --help.`);
 
   const spec = values.from ?? process.env.SF_LWC_REGISTRY;
   if (!spec) throw new Error('No registry. Pass --from owner/repo or set SF_LWC_REGISTRY.');
-
   const source = createSource(spec);
-  const project = await findProject(values.cwd);
-  console.log(`Registry: ${source.label}\nProject:  ${project.root}\n`);
+  if (cmd === 'add') {
+    if (!names.length) throw new Error('Specify at least one component, e.g. sf-lwc add data-table');
+    const project = await findProject(values.cwd);
+    console.log(`Registry: ${source.label}\nProject:  ${project.root}\n`);
 
-  const manifests = await resolve(source, names);
-  const notes = await install({
-    source, manifests, project,
-    overwrite: values.overwrite, dryRun: values['dry-run']
-  });
+    const manifests = await resolve(source, names);
+    const notes = await install({
+      source, manifests, project,
+      overwrite: values.overwrite, dryRun: values['dry-run']
+    });
 
-  console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
-  if (notes.length) console.log('\nManual steps:\n' + notes.map((n) => `  - ${n}`).join('\n'));
+    console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
+    if (notes.length) console.log('\nManual steps:\n' + notes.map((n) => `  - ${n}`).join('\n'));
+    return;
+  }
+
+  if (names.length) throw new Error(`"${cmd}" does not take component names. Try: sf-lwc ${cmd} --from <registry>`);
+  const components = await listComponents(source, spec);
+  console.log(`Registry: ${source.label}\n`);
+  console.log(formatComponentList(components));
 }
 
 main().catch((e) => { console.error(`Error: ${e.message}`); process.exit(1); });

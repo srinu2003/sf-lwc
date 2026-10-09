@@ -4,7 +4,9 @@ CLI that copies open-source LWC components into a Salesforce DX project, along w
 custom labels, and component dependencies.
 
     node bin/sf-lwc.js add data-table --from . --dry-run          # local registry (this repo)
+    node bin/sf-lwc.js list --from .                              # list available components
     GITHUB_TOKEN=... node bin/sf-lwc.js add data-table --from owner/sf-lwc@main
+    SF_LWC_REGISTRY=owner/sf-lwc@main node bin/sf-lwc.js ls
 
 For private registries, set `GITHUB_TOKEN` (or `GH_TOKEN`) to a token with read access to the repo.
 Set `SF_LWC_REGISTRY` to avoid typing `--from`.
