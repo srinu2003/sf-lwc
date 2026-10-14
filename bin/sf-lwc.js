@@ -4,12 +4,15 @@ import { createSource } from '../src/source.js';
 import { resolve } from '../src/resolve.js';
 import { findProject } from '../src/project.js';
 import { install } from '../src/install.js';
+import { remove } from '../src/remove.js';
 import { listComponents, formatComponentList } from '../src/list.js';
 
 const HELP = `sf-lwc — add open-source LWC components to a Salesforce DX project
 
 Usage:
   sf-lwc add <component...> [options]
+  sf-lwc remove <component...> [options]
+  sf-lwc rm <component...> [options]
   sf-lwc list [options]
   sf-lwc ls [options]
 
@@ -18,6 +21,7 @@ Options:
                       (default: $SF_LWC_REGISTRY)
   --overwrite         replace files that already exist
   --dry-run           show what would happen, change nothing
+  --force             remove even when another installed component depends on it
   --cwd <dir>         project directory (default: current)
   -h, --help          show this help
 `;
@@ -29,13 +33,28 @@ async function main() {
       from: { type: 'string' },
       overwrite: { type: 'boolean', default: false },
       'dry-run': { type: 'boolean', default: false },
+      force: { type: 'boolean', default: false },
       cwd: { type: 'string', default: process.cwd() },
       help: { type: 'boolean', short: 'h', default: false }
     }
   });
   const [cmd, ...names] = positionals;
   if (values.help || !cmd) return console.log(HELP);
-  if (!['add', 'list', 'ls'].includes(cmd)) throw new Error(`Unknown command "${cmd}". Try --help.`);
+  if (!['add', 'remove', 'rm', 'list', 'ls'].includes(cmd)) throw new Error(`Unknown command "${cmd}". Try --help.`);
+
+  if (cmd === 'remove' || cmd === 'rm') {
+    if (!names.length) throw new Error('Specify at least one component, e.g. sf-lwc remove data-table');
+    const project = await findProject(values.cwd);
+    console.log(`Project:  ${project.root}\n`);
+    await remove({
+      names,
+      project,
+      dryRun: values['dry-run'],
+      force: values.force
+    });
+    console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
+    return;
+  }
 
   const spec = values.from ?? process.env.SF_LWC_REGISTRY;
   if (!spec) throw new Error('No registry. Pass --from owner/repo or set SF_LWC_REGISTRY.');
