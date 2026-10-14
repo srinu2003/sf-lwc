@@ -8,7 +8,9 @@ export async function findProject(cwd) {
   for (;;) {
     const file = path.join(dir, 'sfdx-project.json');
     if (await exists(file)) {
-      const cfg = JSON.parse(await readFile(file, 'utf8'));
+      const buf = await readFile(file);
+      const str = (buf[0] === 0xff && buf[1] === 0xfe) ? buf.toString('utf16le') : buf.toString('utf8');
+      const cfg = JSON.parse(str.replace(/^\uFEFF/, ''));
       const dirs = cfg.packageDirectories ?? [];
       const def = dirs.find((d) => d.default) ?? dirs[0];
       return {

@@ -6,10 +6,12 @@ import { findProject } from '../src/project.js';
 import { install } from '../src/install.js';
 import { remove } from '../src/remove.js';
 import { listComponents, formatComponentList } from '../src/list.js';
+import { init, readConfig } from '../src/init.js';
 
 const HELP = `sf-lwc — add open-source LWC components to a Salesforce DX project
 
 Usage:
+  sf-lwc init [options]
   sf-lwc add <component...> [options]
   sf-lwc remove <component...> [options]
   sf-lwc rm <component...> [options]
@@ -18,10 +20,11 @@ Usage:
 
 Options:
   --from <registry>   owner/repo[@ref] on GitHub, or a local path
-                      (default: $SF_LWC_REGISTRY)
+                      (default: registry in sf-lwc.json or $SF_LWC_REGISTRY)
+  --registry <reg>    alias for --from
   --overwrite         replace files that already exist
   --dry-run           show what would happen, change nothing
-  --force             remove even when another installed component depends on it
+  --force             force overwrite (init) or remove even with dependents (remove)
   --cwd <dir>         project directory (default: current)
   -h, --help          show this help
 `;
@@ -31,6 +34,7 @@ async function main() {
     allowPositionals: true,
     options: {
       from: { type: 'string' },
+      registry: { type: 'string' },
       overwrite: { type: 'boolean', default: false },
       'dry-run': { type: 'boolean', default: false },
       force: { type: 'boolean', default: false },
@@ -40,11 +44,28 @@ async function main() {
   });
   const [cmd, ...names] = positionals;
   if (values.help || !cmd) return console.log(HELP);
-  if (!['add', 'remove', 'rm', 'list', 'ls'].includes(cmd)) throw new Error(`Unknown command "${cmd}". Try --help.`);
+  if (!['init', 'add', 'remove', 'rm', 'list', 'ls'].includes(cmd)) {
+    throw new Error(`Unknown command "${cmd}". Try --help.`);
+  }
+
+  const project = await findProject(values.cwd);
+
+  if (cmd === 'init') {
+    console.log(`Project:  ${project.root}\n`);
+    const defaultRegistry = 'srinu2003/sf-lwc@main';
+    const registry = values.from ?? values.registry ?? process.env.SF_LWC_REGISTRY ?? defaultRegistry;
+    await init({
+      project,
+      registry,
+      force: values.force,
+      dryRun: values['dry-run']
+    });
+    console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
+    return;
+  }
 
   if (cmd === 'remove' || cmd === 'rm') {
     if (!names.length) throw new Error('Specify at least one component, e.g. sf-lwc remove data-table');
-    const project = await findProject(values.cwd);
     console.log(`Project:  ${project.root}\n`);
     await remove({
       names,
@@ -56,12 +77,16 @@ async function main() {
     return;
   }
 
-  const spec = values.from ?? process.env.SF_LWC_REGISTRY;
-  if (!spec) throw new Error('No registry. Pass --from owner/repo or set SF_LWC_REGISTRY.');
+  const config = await readConfig(project.root);
+  const envRegistry = process.env.SF_LWC_REGISTRY?.trim() || undefined;
+  const spec = values.from ?? values.registry ?? envRegistry ?? config?.registry;
+  if (!spec) {
+    throw new Error('No registry. Run "sf-lwc init", pass --from owner/repo, or set SF_LWC_REGISTRY.');
+  }
+
   const source = createSource(spec);
   if (cmd === 'add') {
     if (!names.length) throw new Error('Specify at least one component, e.g. sf-lwc add data-table');
-    const project = await findProject(values.cwd);
     console.log(`Registry: ${source.label}\nProject:  ${project.root}\n`);
 
     const manifests = await resolve(source, names);
@@ -75,7 +100,7 @@ async function main() {
     return;
   }
 
-  if (names.length) throw new Error(`"${cmd}" does not take component names. Try: sf-lwc ${cmd} --from <registry>`);
+  if (names.length) throw new Error(`"${cmd}" does not take component names. Try: sf-lwc ${cmd}`);
   const components = await listComponents(source, spec);
   console.log(`Registry: ${source.label}\n`);
   console.log(formatComponentList(components));
