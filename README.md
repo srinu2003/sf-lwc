@@ -5,6 +5,7 @@ custom labels, and component dependencies.
 
     node bin/sf-lwc.js add data-table --from . --dry-run          # local registry (this repo)
     node bin/sf-lwc.js list --from .                              # list available components
+    node bin/sf-lwc.js remove data-table --cwd ./my-sfdx-project  # uninstall from a project
     GITHUB_TOKEN=... node bin/sf-lwc.js add data-table --from owner/sf-lwc@main
     SF_LWC_REGISTRY=owner/sf-lwc@main node bin/sf-lwc.js ls
 
@@ -22,3 +23,9 @@ Set `SF_LWC_REGISTRY` to avoid typing `--from`.
 3. Merges `labels` into `labels/CustomLabels.labels-meta.xml` without touching existing labels.
 4. Records installed files in `sf-lwc.lock.json` (groundwork for `update` / `remove`).
 5. Prints `notes` for manual steps (permission sets, objects, fields).
+
+## What `remove` does
+1. Verifies the named component(s) are installed in `sf-lwc.lock.json`.
+2. Blocks removing a dependency still required by another installed component unless `--force` is passed.
+3. Deletes tracked files and prunes tracked custom labels.
+4. Removes component entries from `sf-lwc.lock.json` (and deletes the lockfile when empty).
