@@ -48,7 +48,12 @@ async function main() {
     throw new Error(`Unknown command "${cmd}". Try --help.`);
   }
 
-  const project = await findProject(values.cwd);
+  let project;
+  try {
+    project = await findProject(values.cwd);
+  } catch (err) {
+    if (!['list', 'ls'].includes(cmd)) throw err;
+  }
 
   if (cmd === 'init') {
     console.log(`Project:  ${project.root}\n`);
@@ -77,7 +82,7 @@ async function main() {
     return;
   }
 
-  const config = await readConfig(project.root);
+  const config = project ? await readConfig(project.root) : null;
   const envRegistry = process.env.SF_LWC_REGISTRY?.trim() || undefined;
   const spec = values.from ?? values.registry ?? envRegistry ?? config?.registry;
   if (!spec) {
