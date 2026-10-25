@@ -9,12 +9,14 @@ import { listComponents, formatComponentList } from '../src/list.js';
 import { init, readConfig } from '../src/init.js';
 import { pack } from '../src/pack.js';
 import { diff } from '../src/diff.js';
+import { update } from '../src/update.js';
 
 const HELP = `sf-lwc — add open-source LWC components to a Salesforce DX project
 
 Usage:
   sf-lwc init [options]
   sf-lwc add <component...> [options]
+  sf-lwc update [component...] [options]
   sf-lwc remove <component...> [options]
   sf-lwc rm <component...> [options]
   sf-lwc diff <component> [options]
@@ -48,6 +50,7 @@ async function main() {
       overwrite: { type: 'boolean', short: 'w', default: false },
       'dry-run': { type: 'boolean', default: false },
       force: { type: 'boolean', default: false },
+      all: { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
       cwd: { type: 'string', default: process.cwd() },
       help: { type: 'boolean', short: 'h', default: false }
@@ -55,7 +58,7 @@ async function main() {
   });
   const [cmd, ...names] = positionals;
   if (values.help || !cmd) return console.log(HELP);
-  if (!['init', 'add', 'remove', 'rm', 'diff', 'list', 'ls', 'pack', 'export'].includes(cmd)) {
+  if (!['init', 'add', 'remove', 'rm', 'diff', 'update', 'list', 'ls', 'pack', 'export'].includes(cmd)) {
     throw new Error(`Unknown command "${cmd}". Try --help.`);
   }
 
@@ -95,6 +98,24 @@ async function main() {
       dryRun: values['dry-run'],
       force: values.force
     });
+    console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
+    return;
+  }
+
+  if (cmd === 'update') {
+    const res = await update({
+      names,
+      all: values.all,
+      from: values.from ?? values.registry,
+      cwd: values.cwd,
+      dryRun: values['dry-run'],
+      force: values.force,
+      json: values.json
+    });
+    if (values.json) {
+      console.log(JSON.stringify(res, null, 2));
+      process.exit(0);
+    }
     console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
     return;
   }
