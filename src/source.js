@@ -6,7 +6,8 @@ import path from 'node:path';
 export function createSource(spec) {
   if (/^(\.|\/|~)/.test(spec) || /^[a-zA-Z]:[\\/]/.test(spec)) {
     const root = path.resolve(spec);
-    return { label: root, read: (rel) => readFile(path.join(root, rel)) };
+    const read = (rel) => readFile(path.join(root, rel));
+    return { label: root, read, readFile: read };
   }
   const m = spec.match(/^([\w.-]+)\/([\w.-]+)(?:@(.+))?$/);
   if (!m) throw new Error(`Invalid registry "${spec}". Use owner/repo[@ref] or a local path.`);
