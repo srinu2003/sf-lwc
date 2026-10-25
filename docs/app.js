@@ -7,23 +7,73 @@ async function initDocs() {
     renderNavigation(registry);
     renderComponents(registry);
     setupSearch();
+    setupMobileMenu();
   } catch (err) {
     console.error('Failed to load component registry:', err);
   }
 }
 
+function setupMobileMenu() {
+  const toggle = document.getElementById('menuToggle');
+  const sidebar = document.getElementById('sidebar');
+  if (!toggle || !sidebar) return;
+
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    sidebar.classList.toggle('open');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (window.innerWidth <= 860 && sidebar.classList.contains('open')) {
+      if (!sidebar.contains(e.target) && !toggle.contains(e.target)) {
+        sidebar.classList.remove('open');
+      }
+    }
+  });
+
+  sidebar.querySelectorAll('a').forEach((link) => {
+    link.addEventListener('click', () => {
+      if (window.innerWidth <= 860) {
+        sidebar.classList.remove('open');
+      }
+    });
+  });
+}
+
 function renderNavigation(items) {
   const navList = document.getElementById('componentNavList');
+  if (!navList) return;
   navList.innerHTML = items
     .map(
       (c) =>
         `<li><a href="#comp-${c.name}" onclick="highlightNav(this)">${c.name}</a></li>`
     )
     .join('');
+
+  // Re-attach drawer close handler on mobile for dynamically rendered links
+  navList.querySelectorAll('a').forEach((link) => {
+    link.addEventListener('click', () => {
+      const sidebar = document.getElementById('sidebar');
+      if (window.innerWidth <= 860 && sidebar) {
+        sidebar.classList.remove('open');
+      }
+    });
+  });
 }
 
 function renderComponents(items) {
   const container = document.getElementById('componentsContainer');
+  if (!container) return;
+
+  if (items.length === 0) {
+    container.innerHTML = `
+      <div style="padding: 40px; text-align: center; color: var(--text-secondary); background: var(--bg-card); border: 1px dashed var(--border-subtle); border-radius: var(--radius-lg);">
+        <p style="font-size: 15px; font-weight: 500;">No components found matching your search.</p>
+      </div>
+    `;
+    return;
+  }
+
   container.innerHTML = items
     .map((c) => {
       const fileKeys = Object.keys(c.contents || {});
@@ -45,7 +95,10 @@ function renderComponents(items) {
               ${labelsHtml}
             </div>
             <div class="comp-actions">
-              <button class="copy-btn mini" onclick="copyText('npx sf-lwc add ${c.name}')">npx sf-lwc add ${c.name}</button>
+              <div class="code-box">
+                <code>npx sf-lwc add ${c.name}</code>
+                <button class="mini-copy" onclick="copyText('npx sf-lwc add ${c.name}', this)">Copy</button>
+              </div>
             </div>
           </div>
           <div class="comp-body">
@@ -72,7 +125,9 @@ window.switchTab = function (compName, fileName, btn) {
   if (!comp) return;
 
   const codeEl = document.getElementById(`code-${compName}`);
-  codeEl.textContent = comp.contents[fileName] || '';
+  if (codeEl) {
+    codeEl.textContent = comp.contents[fileName] || '';
+  }
 
   const parent = btn.parentElement;
   parent.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
@@ -81,6 +136,8 @@ window.switchTab = function (compName, fileName, btn) {
 
 function setupSearch() {
   const input = document.getElementById('searchInput');
+  if (!input) return;
+
   input.addEventListener('input', (e) => {
     const q = e.target.value.toLowerCase().trim();
     const filtered = registry.filter(
@@ -93,16 +150,28 @@ function setupSearch() {
   });
 }
 
-window.copyText = function (text) {
+window.copyText = function (text, btnElement) {
   navigator.clipboard.writeText(text).then(() => {
+    showToast();
+    if (btnElement) {
+      const origText = btnElement.innerText;
+      btnElement.innerText = 'Copied!';
+      btnElement.classList.add('copied');
+      setTimeout(() => {
+        btnElement.innerText = origText;
+        btnElement.classList.remove('copied');
+      }, 1800);
+    }
+  }).catch(() => {
     showToast();
   });
 };
 
 function showToast() {
   const toast = document.getElementById('toast');
+  if (!toast) return;
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2000);
+  setTimeout(() => toast.classList.remove('show'), 2200);
 }
 
 function escapeHtml(str) {

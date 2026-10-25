@@ -6,148 +6,194 @@
   <title>sf-lwc — Open-Source Salesforce LWC Registry & CLI</title>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
+  <!-- Mobile Navigation Bar -->
+  <header class="mobile-nav">
+    <div class="brand">
+      <span class="logo-icon">⚡</span>
+      <span class="brand-name">sf-lwc</span>
+    </div>
+    <button class="mobile-menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+  </header>
+
   <div class="layout">
     <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="brand">
-        <span class="logo-icon">⚡</span>
-        <div class="logo-text">
-          <h1>sf-lwc</h1>
-          <span class="badge">v0.2.0</span>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <span class="logo-icon">⚡</span>
+          <div class="logo-text">
+            <h1>sf-lwc</h1>
+            <span class="badge">v0.2.0</span>
+          </div>
         </div>
+        <p class="brand-tagline">Salesforce DX Component CLI</p>
       </div>
 
       <div class="search-box">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
         <input type="text" id="searchInput" placeholder="Search components & commands..." />
       </div>
 
       <nav class="nav-menu">
         <div class="nav-section">
-          <h3>Getting Started</h3>
+          <h3>Guide & Docs</h3>
           <ul>
-            <li><a href="#overview" class="active">Overview & Quickstart</a></li>
-            <li><a href="#cli-reference">CLI Command Guide</a></li>
+            <li><a href="#overview" class="active">Overview</a></li>
+            <li><a href="#cli-reference">CLI Commands</a></li>
           </ul>
         </div>
 
         <div class="nav-section">
-          <h3>Component Registry</h3>
+          <h3>Component Catalog</h3>
           <ul id="componentNavList">
             <!-- Populated dynamically -->
           </ul>
+        </div>
+
+        <div class="nav-footer">
+          <a href="https://github.com/srinu2003/sf-lwc" target="_blank" rel="noopener" class="github-link">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"></path>
+            </svg>
+            GitHub Repository
+          </a>
         </div>
       </nav>
     </aside>
 
     <!-- Main Content -->
     <main class="content">
-      <!-- Header Banner -->
-      <header class="hero">
-        <div class="hero-tag">Salesforce DX Distribution Platform</div>
-        <h2>Own your UI components. Zero runtime lock-in.</h2>
+      <!-- Hero -->
+      <header class="hero" id="overview">
+        <div class="hero-badge">
+          <span class="pulse-dot"></span>
+          <span>Open-Source Salesforce DX CLI</span>
+        </div>
+        <h2>The <code>shadcn/ui</code> for Lightning Web Components</h2>
         <p class="hero-subtitle">
-          <code>sf-lwc</code> is the <code>shadcn/ui</code> for Salesforce Lightning Web Components. Copy clean, SLDS-accessible source code directly into your Salesforce DX project with automated dependency discovery.
+          Copy accessible, production-tested SLDS components directly into your Salesforce DX workspace. Own your code, avoid unmanageable package locks, and automate dependency discovery.
         </p>
 
-        <div class="quick-install">
-          <div class="terminal-bar">
-            <span class="dot red"></span>
-            <span class="dot yellow"></span>
-            <span class="dot green"></span>
-            <span class="terminal-title">Quickstart Installation</span>
+        <div class="install-card">
+          <div class="install-header">
+            <span class="window-dot red"></span>
+            <span class="window-dot yellow"></span>
+            <span class="window-dot green"></span>
+            <span class="install-title">Terminal</span>
           </div>
-          <div class="terminal-body">
-            <code>npx sf-lwc add modal</code>
-            <button class="copy-btn" onclick="copyText('npx sf-lwc add modal')">Copy</button>
+          <div class="install-body">
+            <span class="prompt">$</span>
+            <code id="quickCommand">npx sf-lwc add modal</code>
+            <button class="copy-action-btn" onclick="copyText('npx sf-lwc add modal', this)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>Copy</span>
+            </button>
           </div>
         </div>
       </header>
 
-      <!-- CLI Guide Section -->
+      <!-- CLI Reference Grid -->
       <section id="cli-reference" class="section">
-        <h2>CLI Platform Capabilities</h2>
+        <div class="section-title-group">
+          <h3>CLI Platform Capabilities</h3>
+          <p>Six unified commands designed for continuous DX developer workflows.</p>
+        </div>
+
         <div class="cards-grid">
           <div class="feature-card">
-            <div class="card-header">
-              <span class="cmd-badge">init</span>
+            <div class="card-top">
+              <span class="cmd-pill">init</span>
               <h4>sf-lwc init</h4>
             </div>
-            <p>Configures <code>sf-lwc.json</code> in your DX project with your preferred GitHub or local component registry.</p>
-            <div class="code-snippet">
-              <code>sf-lwc init --from owner/repo@main</code>
-              <button class="copy-btn mini" onclick="copyText('sf-lwc init --from owner/repo@main')">Copy</button>
+            <p>Configures default registry spec in <code>sf-lwc.json</code> for seamless local or team installation.</p>
+            <div class="code-box">
+              <code>sf-lwc init</code>
+              <button class="mini-copy" onclick="copyText('sf-lwc init', this)">Copy</button>
             </div>
           </div>
 
           <div class="feature-card">
-            <div class="card-header">
-              <span class="cmd-badge">add</span>
+            <div class="card-top">
+              <span class="cmd-pill">add</span>
               <h4>sf-lwc add &lt;component&gt;</h4>
             </div>
-            <p>Recursively installs components, auto-merges Custom Labels into <code>CustomLabels.labels-meta.xml</code>, and records lockfile tracking.</p>
-            <div class="code-snippet">
-              <code>sf-lwc add modal data-table</code>
-              <button class="copy-btn mini" onclick="copyText('sf-lwc add modal data-table')">Copy</button>
+            <p>Recursively installs component source files, merges Custom Labels, and updates <code>sf-lwc.lock.json</code>.</p>
+            <div class="code-box">
+              <code>sf-lwc add modal</code>
+              <button class="mini-copy" onclick="copyText('sf-lwc add modal', this)">Copy</button>
             </div>
           </div>
 
           <div class="feature-card">
-            <div class="card-header">
-              <span class="cmd-badge">diff</span>
+            <div class="card-top">
+              <span class="cmd-pill">diff</span>
               <h4>sf-lwc diff &lt;component&gt;</h4>
             </div>
-            <p>Unified line-by-line diff comparing your locally customized components against upstream registry versions.</p>
-            <div class="code-snippet">
+            <p>Unified line-by-line diff comparing your locally customized code against the upstream registry.</p>
+            <div class="code-box">
               <code>sf-lwc diff modal</code>
-              <button class="copy-btn mini" onclick="copyText('sf-lwc diff modal')">Copy</button>
+              <button class="mini-copy" onclick="copyText('sf-lwc diff modal', this)">Copy</button>
             </div>
           </div>
 
           <div class="feature-card">
-            <div class="card-header">
-              <span class="cmd-badge">update</span>
+            <div class="card-top">
+              <span class="cmd-pill">update</span>
               <h4>sf-lwc update</h4>
             </div>
-            <p>Inspects <code>sf-lwc.lock.json</code> and safely upgrades installed components with custom label synchronization.</p>
-            <div class="code-snippet">
+            <p>Inspects lockfile semver against upstream and safely upgrades component files and labels.</p>
+            <div class="code-box">
               <code>sf-lwc update --all</code>
-              <button class="copy-btn mini" onclick="copyText('sf-lwc update --all')">Copy</button>
+              <button class="mini-copy" onclick="copyText('sf-lwc update --all', this)">Copy</button>
             </div>
           </div>
 
           <div class="feature-card">
-            <div class="card-header">
-              <span class="cmd-badge">doctor</span>
+            <div class="card-top">
+              <span class="cmd-pill">doctor</span>
               <h4>sf-lwc doctor</h4>
             </div>
-            <p>Health check auditing <code>sfdx-project.json</code>, default package directories, registry connectivity, and lockfile file integrity.</p>
-            <div class="code-snippet">
+            <p>Comprehensive health check validating DX package root, registry connectivity, and lockfile physical file integrity.</p>
+            <div class="code-box">
               <code>sf-lwc doctor</code>
-              <button class="copy-btn mini" onclick="copyText('sf-lwc doctor')">Copy</button>
+              <button class="mini-copy" onclick="copyText('sf-lwc doctor', this)">Copy</button>
             </div>
           </div>
 
           <div class="feature-card">
-            <div class="card-header">
-              <span class="cmd-badge">pack</span>
+            <div class="card-top">
+              <span class="cmd-pill">pack</span>
               <h4>sf-lwc pack &lt;component&gt;</h4>
             </div>
-            <p>Automated dependency tracing via Salesforce Tooling API across Apex, Child LWCs, Labels, and Decomposed Custom Objects.</p>
-            <div class="code-snippet">
+            <p>Automated metadata dependency tracing via Salesforce Tooling API across Apex, Labels, and Child LWCs.</p>
+            <div class="code-box">
               <code>sf-lwc pack myComponent -o myOrg</code>
-              <button class="copy-btn mini" onclick="copyText('sf-lwc pack myComponent -o myOrg')">Copy</button>
+              <button class="mini-copy" onclick="copyText('sf-lwc pack myComponent -o myOrg', this)">Copy</button>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Component Explorer Section -->
+      <!-- Component Explorer -->
       <section id="component-explorer" class="section">
-        <div class="section-header">
-          <h2>Component Explorer</h2>
-          <span class="section-tag">Interactive Catalog</span>
+        <div class="section-title-group">
+          <h3>Component Catalog</h3>
+          <p>Explore source code blueprints ready to drop into any Salesforce DX project.</p>
         </div>
 
         <div id="componentsContainer">
@@ -157,7 +203,12 @@
     </main>
   </div>
 
-  <div id="toast" class="toast">Copied to clipboard!</div>
+  <div id="toast" class="toast">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+    <span>Copied to clipboard!</span>
+  </div>
 
   <script src="app.js"></script>
 </body>
