@@ -7,6 +7,7 @@ import { install } from '../src/install.js';
 import { remove } from '../src/remove.js';
 import { listComponents, formatComponentList } from '../src/list.js';
 import { init, readConfig } from '../src/init.js';
+import { pack } from '../src/pack.js';
 
 const HELP = `sf-lwc — add open-source LWC components to a Salesforce DX project
 
@@ -17,16 +18,21 @@ Usage:
   sf-lwc rm <component...> [options]
   sf-lwc list [options]
   sf-lwc ls [options]
+  sf-lwc pack <component> [options]
+  sf-lwc export <component> [options]
 
 Options:
-  --from <registry>   owner/repo[@ref] on GitHub, or a local path
-                      (default: registry in sf-lwc.json or $SF_LWC_REGISTRY)
-  --registry <reg>    alias for --from
-  --overwrite         replace files that already exist
-  --dry-run           show what would happen, change nothing
-  --force             force overwrite (init) or remove even with dependents (remove)
-  --cwd <dir>         project directory (default: current)
-  -h, --help          show this help
+  --from <registry>       owner/repo[@ref] on GitHub, or a local path
+                          (default: registry in sf-lwc.json or $SF_LWC_REGISTRY)
+  --registry <reg>        alias for --from
+  -o, --target-org <org>  target Salesforce org (default: default org)
+  -d, --output <dir>      target destination directory (default: components/<component>)
+  -w, --overwrite         replace files or destination that already exist
+  --dry-run               show what would happen, change nothing
+  --force                 force overwrite (init) or remove even with dependents (remove)
+  --json                  output in JSON format
+  --cwd <dir>             project directory (default: current)
+  -h, --help              show this help
 `;
 
 async function main() {
@@ -35,17 +41,27 @@ async function main() {
     options: {
       from: { type: 'string' },
       registry: { type: 'string' },
-      overwrite: { type: 'boolean', default: false },
+      'target-org': { type: 'string', short: 'o' },
+      output: { type: 'string', short: 'd' },
+      overwrite: { type: 'boolean', short: 'w', default: false },
       'dry-run': { type: 'boolean', default: false },
       force: { type: 'boolean', default: false },
+      json: { type: 'boolean', default: false },
       cwd: { type: 'string', default: process.cwd() },
       help: { type: 'boolean', short: 'h', default: false }
     }
   });
   const [cmd, ...names] = positionals;
   if (values.help || !cmd) return console.log(HELP);
-  if (!['init', 'add', 'remove', 'rm', 'list', 'ls'].includes(cmd)) {
+  if (!['init', 'add', 'remove', 'rm', 'list', 'ls', 'pack', 'export'].includes(cmd)) {
     throw new Error(`Unknown command "${cmd}". Try --help.`);
+  }
+
+  if ((cmd === 'pack' || cmd === 'export') && !names.length) {
+    throw new Error('Specify a component name to pack, e.g. sf-lwc pack myComponent');
+  }
+  if (['add', 'remove', 'rm'].includes(cmd) && !names.length) {
+    throw new Error(`Specify at least one component, e.g. sf-lwc ${cmd} data-table`);
   }
 
   let project;
@@ -70,7 +86,6 @@ async function main() {
   }
 
   if (cmd === 'remove' || cmd === 'rm') {
-    if (!names.length) throw new Error('Specify at least one component, e.g. sf-lwc remove data-table');
     console.log(`Project:  ${project.root}\n`);
     await remove({
       names,
@@ -79,6 +94,23 @@ async function main() {
       force: values.force
     });
     console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
+    return;
+  }
+
+  if (cmd === 'pack' || cmd === 'export') {
+    const componentName = names[0];
+    const projectRoot = project ? project.root : values.cwd;
+    const packageDefault = project ? project.targetRoot : undefined;
+
+    await pack(componentName, {
+      targetOrg: values['target-org'],
+      output: values.output,
+      overwrite: values.overwrite,
+      dryRun: values['dry-run'],
+      json: values.json,
+      projectRoot,
+      packageDefault
+    });
     return;
   }
 
@@ -91,7 +123,6 @@ async function main() {
 
   const source = createSource(spec);
   if (cmd === 'add') {
-    if (!names.length) throw new Error('Specify at least one component, e.g. sf-lwc add data-table');
     console.log(`Registry: ${source.label}\nProject:  ${project.root}\n`);
 
     const manifests = await resolve(source, names);
