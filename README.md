@@ -15,6 +15,9 @@ node bin/sf-lwc.js add data-table
 
 # Remove a component cleanly
 node bin/sf-lwc.js remove data-table
+
+# Pack / export a component with automated dependency tracing
+node bin/sf-lwc.js pack myComponent -o devOrg
 ```
 
 For private registries, set `GITHUB_TOKEN` (or `GH_TOKEN`) to a token with read access to the repo.
@@ -41,3 +44,10 @@ Set `SF_LWC_REGISTRY` or run `sf-lwc init` to avoid typing `--from`.
 2. Blocks removing a dependency still required by another installed component unless `--force` is passed.
 3. Deletes tracked files and prunes tracked custom labels.
 4. Removes component entries from `sf-lwc.lock.json` (and deletes the lockfile when empty).
+
+## What `pack` / `export` does
+1. Traverses the component dependency graph dynamically using Salesforce's `MetadataComponentDependency` Tooling API.
+2. Recursively resolves dependent Apex classes, controllers, Custom Labels, Child LWCs, Custom Objects/Fields, and Static Resources.
+3. Applies standard entity safeguards (never bundles `Account`, `Contact`, `User`, etc.).
+4. Emits a valid `manifest.json` conforming to `schema/manifest.schema.json`.
+5. Packages identified source files into `components/<name>/` ready for registry publication.
