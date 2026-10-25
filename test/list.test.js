@@ -15,7 +15,7 @@ test('listComponents reads local registry manifests', async () => {
   const components = await listComponents(source, root);
   assert.deepEqual(
     components.map((component) => component.name),
-    ['data-table', 'toast-utils']
+    ['data-table', 'modal', 'toast-utils']
   );
   assert.equal(components[0].version, '1.0.0');
   assert.deepEqual(components[0].dependencies, ['toast-utils']);
@@ -27,10 +27,12 @@ test('cli list command prints component details', async () => {
   assert.match(stdout, /- data-table@1\.0\.0/);
   assert.match(stdout, /Config-driven record table backed by an Apex controller\./);
   assert.match(stdout, /dependencies: toast-utils/);
+  assert.match(stdout, /- modal@1\.0\.0/);
   assert.match(stdout, /- toast-utils@1\.0\.0/);
 });
 
 test('cli ls alias works', async () => {
   const { stdout } = await execFileAsync('node', ['bin/sf-lwc.js', 'ls', '--from', root], { cwd: root });
   assert.match(stdout, /- data-table@1\.0\.0/);
+  assert.match(stdout, /- modal@1\.0\.0/);
 });
