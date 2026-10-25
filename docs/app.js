@@ -16,17 +16,36 @@ async function initDocs() {
 function setupMobileMenu() {
   const toggle = document.getElementById('menuToggle');
   const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
   if (!toggle || !sidebar) return;
+
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    if (backdrop) backdrop.classList.remove('active');
+  }
+
+  function openSidebar() {
+    sidebar.classList.add('open');
+    if (backdrop) backdrop.classList.add('active');
+  }
 
   toggle.addEventListener('click', (e) => {
     e.stopPropagation();
-    sidebar.classList.toggle('open');
+    if (sidebar.classList.contains('open')) {
+      closeSidebar();
+    } else {
+      openSidebar();
+    }
   });
+
+  if (backdrop) {
+    backdrop.addEventListener('click', closeSidebar);
+  }
 
   document.addEventListener('click', (e) => {
     if (window.innerWidth <= 860 && sidebar.classList.contains('open')) {
       if (!sidebar.contains(e.target) && !toggle.contains(e.target)) {
-        sidebar.classList.remove('open');
+        closeSidebar();
       }
     }
   });
@@ -34,7 +53,7 @@ function setupMobileMenu() {
   sidebar.querySelectorAll('a').forEach((link) => {
     link.addEventListener('click', () => {
       if (window.innerWidth <= 860) {
-        sidebar.classList.remove('open');
+        closeSidebar();
       }
     });
   });
@@ -51,11 +70,13 @@ function renderNavigation(items) {
     .join('');
 
   // Re-attach drawer close handler on mobile for dynamically rendered links
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
   navList.querySelectorAll('a').forEach((link) => {
     link.addEventListener('click', () => {
-      const sidebar = document.getElementById('sidebar');
       if (window.innerWidth <= 860 && sidebar) {
         sidebar.classList.remove('open');
+        if (backdrop) backdrop.classList.remove('active');
       }
     });
   });
