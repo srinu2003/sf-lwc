@@ -11,10 +11,16 @@ test('docs interactive site assets exist and are properly structured', () => {
 
   const registry = JSON.parse(fs.readFileSync('docs/registry.json', 'utf8'));
   assert.ok(Array.isArray(registry));
-  assert.ok(registry.length >= 3, 'All registry components bundled in docs');
+  assert.ok(registry.length >= 2, 'Registry components bundled in docs');
 
   const modal = registry.find(c => c.name === 'modal');
   assert.ok(modal);
   assert.ok(modal.contents['lwc/modal/modal.html']);
   assert.ok(modal.contents['lwc/modal/modal.js']);
+
+  const toastUtils = registry.find(c => c.name === 'toast-utils');
+  assert.ok(toastUtils);
+
+  const dataTable = registry.find(c => c.name === 'data-table');
+  assert.equal(dataTable, undefined, 'data-table must not be present in registry');
 });

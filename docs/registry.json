@@ -1,48 +1,5 @@
 [
   {
-    "name": "data-table",
-    "version": "1.0.0",
-    "description": "Config-driven record table backed by an Apex controller.",
-    "apiVersion": "62.0",
-    "dependencies": [
-      "toast-utils"
-    ],
-    "labels": [
-      {
-        "fullName": "DataTable_NoRecords",
-        "value": "No records to display",
-        "shortDescription": "data-table empty state"
-      },
-      {
-        "fullName": "DataTable_InvalidObject",
-        "value": "Invalid object or fields",
-        "shortDescription": "data-table config error"
-      }
-    ],
-    "notes": [
-      "Users need read access to the object and fields shown (grant via a permission set).",
-      "Add the component to a Lightning page and set objectApiName and columns."
-    ],
-    "files": [
-      "lwc/dataTable/dataTable.html",
-      "lwc/dataTable/dataTable.js",
-      "lwc/dataTable/dataTable.js-meta.xml",
-      "classes/DataTableController.cls",
-      "classes/DataTableController.cls-meta.xml",
-      "classes/DataTableControllerTest.cls",
-      "classes/DataTableControllerTest.cls-meta.xml"
-    ],
-    "contents": {
-      "lwc/dataTable/dataTable.html": "<template>\r\n    <template lwc:if={isEmpty}>\r\n        <p class=\"slds-p-around_small\">{label.NO_RECORDS}</p>\r\n    </template>\r\n    <template lwc:else>\r\n        <lightning-datatable key-field=\"Id\" data={rows} columns={columns} hide-checkbox-column>\r\n        </lightning-datatable>\r\n    </template>\r\n</template>\r\n",
-      "lwc/dataTable/dataTable.js": "import { LightningElement, api, wire } from 'lwc';\r\nimport getRecords from '@salesforce/apex/DataTableController.getRecords';\r\nimport NO_RECORDS from '@salesforce/label/c.DataTable_NoRecords';\r\nimport { showToast } from 'c/toastUtils';\r\n\r\nexport default class DataTable extends LightningElement {\r\n    @api objectApiName;\r\n    @api columns = []; // [{ label: 'Name', fieldName: 'Name' }]\r\n    @api limitCount = 50;\r\n\r\n    label = { NO_RECORDS };\r\n    rows = [];\r\n\r\n    get fieldNames() {\r\n        return ['Id', ...this.columns.map((c) => c.fieldName)];\r\n    }\r\n\r\n    get isEmpty() {\r\n        return this.rows.length === 0;\r\n    }\r\n\r\n    @wire(getRecords, { objectApiName: '$objectApiName', fields: '$fieldNames', limitCount: '$limitCount' })\r\n    wiredRecords({ data, error }) {\r\n        if (data) {\r\n            this.rows = data;\r\n        } else if (error) {\r\n            this.rows = [];\r\n            showToast(this, 'Error', error.body?.message ?? 'Unable to load records', 'error');\r\n        }\r\n    }\r\n}\r\n",
-      "lwc/dataTable/dataTable.js-meta.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<LightningComponentBundle xmlns=\"http://soap.sforce.com/2006/04/metadata\">\r\n    <apiVersion>62.0</apiVersion>\r\n    <isExposed>true</isExposed>\r\n    <masterLabel>Data Table</masterLabel>\r\n    <targets>\r\n        <target>lightning__AppPage</target>\r\n        <target>lightning__HomePage</target>\r\n        <target>lightning__RecordPage</target>\r\n    </targets>\r\n</LightningComponentBundle>\r\n",
-      "classes/DataTableController.cls": "public with sharing class DataTableController {\r\n    @AuraEnabled(cacheable=true)\r\n    public static List<SObject> getRecords(String objectApiName, List<String> fields, Integer limitCount) {\r\n        Schema.SObjectType sot = Schema.getGlobalDescribe().get(objectApiName);\r\n        if (sot == null || fields == null) {\r\n            throw new AuraHandledException(System.Label.DataTable_InvalidObject);\r\n        }\r\n        Map<String, Schema.SObjectField> fieldMap = sot.getDescribe().fields.getMap();\r\n        List<String> safeFields = new List<String>();\r\n        for (String f : fields) {\r\n            if (fieldMap.containsKey(f.toLowerCase())) {\r\n                safeFields.add(f);\r\n            }\r\n        }\r\n        if (safeFields.isEmpty()) {\r\n            throw new AuraHandledException(System.Label.DataTable_InvalidObject);\r\n        }\r\n        Integer lim = Math.min(limitCount == null ? 50 : limitCount, 200);\r\n        String soql = 'SELECT ' + String.join(safeFields, ', ') +\r\n            ' FROM ' + sot.getDescribe().getName() +\r\n            ' WITH USER_MODE LIMIT ' + lim;\r\n        return Database.query(soql);\r\n    }\r\n}\r\n",
-      "classes/DataTableController.cls-meta.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<ApexClass xmlns=\"http://soap.sforce.com/2006/04/metadata\">\r\n    <apiVersion>62.0</apiVersion>\r\n    <status>Active</status>\r\n</ApexClass>\r\n",
-      "classes/DataTableControllerTest.cls": "@IsTest\r\nprivate class DataTableControllerTest {\r\n    @IsTest\r\n    static void returnsRecords() {\r\n        insert new Account(Name = 'Acme');\r\n        List<SObject> rows = DataTableController.getRecords('Account', new List<String>{ 'Id', 'Name' }, 10);\r\n        Assert.areEqual(1, rows.size());\r\n    }\r\n\r\n    @IsTest\r\n    static void rejectsUnknownObject() {\r\n        try {\r\n            DataTableController.getRecords('Nope__c', new List<String>{ 'Id' }, 10);\r\n            Assert.fail('Expected exception');\r\n        } catch (AuraHandledException e) {\r\n            Assert.isNotNull(e);\r\n        }\r\n    }\r\n}\r\n",
-      "classes/DataTableControllerTest.cls-meta.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<ApexClass xmlns=\"http://soap.sforce.com/2006/04/metadata\">\r\n    <apiVersion>62.0</apiVersion>\r\n    <status>Active</status>\r\n</ApexClass>\r\n"
-    }
-  },
-  {
     "name": "modal",
     "version": "1.0.0",
     "description": "Accessible, SLDS-compliant modal dialog component with responsive sizing, slots, and keyboard navigation.",
