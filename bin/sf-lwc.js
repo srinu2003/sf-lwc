@@ -8,6 +8,7 @@ import { remove } from '../src/remove.js';
 import { listComponents, formatComponentList } from '../src/list.js';
 import { init, readConfig } from '../src/init.js';
 import { pack } from '../src/pack.js';
+import { diff } from '../src/diff.js';
 
 const HELP = `sf-lwc — add open-source LWC components to a Salesforce DX project
 
@@ -16,6 +17,7 @@ Usage:
   sf-lwc add <component...> [options]
   sf-lwc remove <component...> [options]
   sf-lwc rm <component...> [options]
+  sf-lwc diff <component> [options]
   sf-lwc list [options]
   sf-lwc ls [options]
   sf-lwc pack <component> [options]
@@ -53,7 +55,7 @@ async function main() {
   });
   const [cmd, ...names] = positionals;
   if (values.help || !cmd) return console.log(HELP);
-  if (!['init', 'add', 'remove', 'rm', 'list', 'ls', 'pack', 'export'].includes(cmd)) {
+  if (!['init', 'add', 'remove', 'rm', 'diff', 'list', 'ls', 'pack', 'export'].includes(cmd)) {
     throw new Error(`Unknown command "${cmd}". Try --help.`);
   }
 
@@ -95,6 +97,55 @@ async function main() {
     });
     console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
     return;
+  }
+
+  if (cmd === 'diff') {
+    if (!names.length) {
+      throw new Error('Specify a component name to diff, e.g. sf-lwc diff modal');
+    }
+    const componentName = names[0];
+    const result = await diff(componentName, {
+      from: values.from ?? values.registry,
+      cwd: values.cwd,
+      json: values.json
+    });
+
+    if (values.json) {
+      console.log(JSON.stringify(result, null, 2));
+      process.exit(0);
+    }
+
+    if (result.identical) {
+      console.log(`\x1b[32m✔\x1b[0m Component '${componentName}' matches registry exactly.`);
+      process.exit(0);
+    }
+
+    console.log(`\x1b[33m!\x1b[0m Differences found in '${componentName}':\n`);
+    for (const file of result.files) {
+      if (file.status === 'identical') {
+        console.log(`\x1b[32m  ✔ ${file.file} (identical)\x1b[0m`);
+      } else if (file.status === 'missing') {
+        console.log(`\x1b[31m  ✖ ${file.file} (missing locally)\x1b[0m`);
+      } else if (file.status === 'modified') {
+        console.log(`\x1b[33m  ● ${file.file} (modified)\x1b[0m`);
+        if (file.diff) {
+          const lines = file.diff.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('+') && !line.startsWith('+++')) {
+              console.log(`\x1b[32m${line}\x1b[0m`);
+            } else if (line.startsWith('-') && !line.startsWith('---')) {
+              console.log(`\x1b[31m${line}\x1b[0m`);
+            } else if (line.startsWith('@@')) {
+              console.log(`\x1b[36m${line}\x1b[0m`);
+            } else {
+              console.log(line);
+            }
+          }
+          console.log('');
+        }
+      }
+    }
+    process.exit(1);
   }
 
   if (cmd === 'pack' || cmd === 'export') {
