@@ -10,11 +10,13 @@ import { init, readConfig } from '../src/init.js';
 import { pack } from '../src/pack.js';
 import { diff } from '../src/diff.js';
 import { update } from '../src/update.js';
+import { doctor } from '../src/doctor.js';
 
 const HELP = `sf-lwc — add open-source LWC components to a Salesforce DX project
 
 Usage:
   sf-lwc init [options]
+  sf-lwc doctor [options]
   sf-lwc add <component...> [options]
   sf-lwc update [component...] [options]
   sf-lwc remove <component...> [options]
@@ -58,7 +60,7 @@ async function main() {
   });
   const [cmd, ...names] = positionals;
   if (values.help || !cmd) return console.log(HELP);
-  if (!['init', 'add', 'remove', 'rm', 'diff', 'update', 'list', 'ls', 'pack', 'export'].includes(cmd)) {
+  if (!['init', 'add', 'remove', 'rm', 'diff', 'update', 'doctor', 'list', 'ls', 'pack', 'export'].includes(cmd)) {
     throw new Error(`Unknown command "${cmd}". Try --help.`);
   }
 
@@ -74,6 +76,37 @@ async function main() {
     project = await findProject(values.cwd);
   } catch (err) {
     if (!['list', 'ls'].includes(cmd)) throw err;
+  }
+
+  if (cmd === 'doctor') {
+    const res = await doctor({
+      cwd: values.cwd,
+      json: values.json
+    });
+
+    if (values.json) {
+      console.log(JSON.stringify(res, null, 2));
+      process.exit(res.ok ? 0 : 1);
+    }
+
+    console.log('=== sf-lwc Doctor Diagnostic Report ===\n');
+    for (const c of res.checks) {
+      if (c.status === 'pass') {
+        console.log(`  \x1b[32m✔\x1b[0m ${c.name}: ${c.message}`);
+      } else if (c.status === 'warn') {
+        console.log(`  \x1b[33m!\x1b[0m ${c.name}: ${c.message}`);
+      } else {
+        console.log(`  \x1b[31m✖\x1b[0m ${c.name}: ${c.message}`);
+      }
+    }
+    console.log('');
+    if (res.ok) {
+      console.log('\x1b[32mAll health checks passed! Project is ready.\x1b[0m\n');
+      process.exit(0);
+    } else {
+      console.log('\x1b[31mIssues detected. Please review the failures above.\x1b[0m\n');
+      process.exit(1);
+    }
   }
 
   if (cmd === 'init') {
