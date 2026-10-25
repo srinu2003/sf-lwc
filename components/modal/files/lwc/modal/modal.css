@@ -1,0 +1,7 @@
+:host {
+  --slds-c-modal-radius-border: 0.25rem;
+}
+
+.slds-modal__content {
+  overflow-y: auto;
+}

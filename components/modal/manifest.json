@@ -1,0 +1,27 @@
+{
+  "name": "modal",
+  "version": "1.0.0",
+  "description": "Accessible, SLDS-compliant modal dialog component with responsive sizing, slots, and keyboard navigation.",
+  "apiVersion": "62.0",
+  "files": [
+    "lwc/modal/modal.html",
+    "lwc/modal/modal.js",
+    "lwc/modal/modal.css",
+    "lwc/modal/modal.js-meta.xml"
+  ],
+  "labels": [
+    {
+      "fullName": "Modal_CloseTitle",
+      "value": "Close",
+      "shortDescription": "Tooltip and aria-label for modal close button"
+    },
+    {
+      "fullName": "Modal_DefaultCancel",
+      "value": "Cancel",
+      "shortDescription": "Default label for cancel button"
+    }
+  ],
+  "notes": [
+    "Use <c-modal is-open={isOpen} title='My Modal' onclose={handleClose}> to display dialogs."
+  ]
+}
