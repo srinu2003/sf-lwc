@@ -1,0 +1,40 @@
+{
+  "name": "plugin-lwc",
+  "version": "0.1.0",
+  "description": "Salesforce CLI plugin for sf-lwc: add, diff, update, and manage open-source LWC components in Salesforce DX",
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "messages",
+    "oclif.manifest.json"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "node -e \"fs.rmSync('lib', { recursive: true, force: true })\"",
+    "prepack": "npm run build"
+  },
+  "oclif": {
+    "bin": "sf",
+    "commands": "./lib/commands",
+    "topicSeparator": " ",
+    "flexibleTaxonomy": true,
+    "topics": {
+      "lwc": {
+        "description": "manage and install open-source LWC components in Salesforce DX"
+      }
+    }
+  },
+  "dependencies": {
+    "@salesforce/core": "^8.8.0",
+    "@salesforce/sf-plugins-core": "^12.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}
