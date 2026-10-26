@@ -1,18 +1,19 @@
-import { SfCommand, Flags, Args } from '@salesforce/sf-plugins-core';
+import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
+import { Args } from '@oclif/core';
 import { Messages, SfProject, SfError } from '@salesforce/core';
 // @ts-ignore
-import { diff } from '../../../../src/diff.js';
+import { diff } from 'sf-lwc/diff.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('plugin-lwc', 'lwc.diff');
 
 export type LwcDiffResult = {
-  hasModifications: boolean;
-  diffs: Array<{
+  name: string;
+  identical: boolean;
+  files: Array<{
     file: string;
-    hasDiff: boolean;
-    unifiedDiff?: string;
-    status: 'identical' | 'modified' | 'missing_local' | 'missing_upstream';
+    status: string;
+    diff?: string;
   }>;
 };
 
@@ -47,31 +48,34 @@ export default class LwcDiff extends SfCommand<LwcDiffResult> {
     }
 
     try {
-      const result = await diff({
-        component: args.component,
+      const result = await diff(args.component, {
         from: flags.from,
         cwd,
       });
 
-      if (result.hasModifications) {
-        this.log(`Modifications found in ${args.component}:`);
-        for (const d of result.diffs) {
-          if (d.hasDiff) {
-            this.log(`--- ${d.file} (${d.status}) ---`);
-            if (d.unifiedDiff) {
-              this.log(d.unifiedDiff);
+      if (result.identical) {
+        this.log(`Component '${args.component}' matches registry exactly.`);
+      } else {
+        this.log(`Differences found in '${args.component}':`);
+        for (const file of result.files) {
+          if (file.status === 'identical') {
+            this.log(`  ✓ ${file.file} (identical)`);
+          } else if (file.status === 'missing') {
+            this.log(`  ✖ ${file.file} (missing locally)`);
+          } else if (file.status === 'modified') {
+            this.log(`  ● ${file.file} (modified)`);
+            if (file.diff) {
+              this.log(file.diff);
             }
           }
         }
-      } else {
-        this.log(`No modifications detected in ${args.component}. Matches upstream registry.`);
       }
 
       return result;
     } catch (err) {
       throw new SfError(
-        `Diff failed: ${(err as Error).message}`,
-        'DiffCommandFailed'
+        `Failed to diff ${args.component}: ${(err as Error).message}`,
+        'ComponentDiffFailed'
       );
     }
   }

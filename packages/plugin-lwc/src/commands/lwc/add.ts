@@ -1,15 +1,16 @@
-import { SfCommand, Flags, Args } from '@salesforce/sf-plugins-core';
+import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
+import { Args } from '@oclif/core';
 import { Messages, SfProject, SfError } from '@salesforce/core';
 // @ts-ignore
-import { findProject } from '../../../../src/project.js';
+import { findProject } from 'sf-lwc/project.js';
 // @ts-ignore
-import { createSource } from '../../../../src/source.js';
+import { createSource } from 'sf-lwc/source.js';
 // @ts-ignore
-import { resolvePlan } from '../../../../src/resolve.js';
+import { resolve } from 'sf-lwc/resolve.js';
 // @ts-ignore
-import { install } from '../../../../src/install.js';
+import { install } from 'sf-lwc/install.js';
 // @ts-ignore
-import { readConfig } from '../../../../src/init.js';
+import { readConfig } from 'sf-lwc/init.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('plugin-lwc', 'lwc.add');
@@ -60,28 +61,34 @@ export default class LwcAdd extends SfCommand<LwcAddResult> {
 
     const project = await findProject(cwd);
     const config = await readConfig(cwd);
-    const from = flags.from || config?.registry;
+    const from = flags.from || config?.registry || process.env.SF_LWC_REGISTRY || '.';
 
     this.spinner.start(`Resolving ${args.component}`);
 
     try {
       const source = createSource(from);
-      const plan = await resolvePlan(source, [args.component]);
-      this.spinner.status = `Installing ${plan.length} component(s)`;
+      const manifests = await resolve(source, [args.component]);
+      this.spinner.status = `Installing ${manifests.length} component(s)`;
 
-      await install({
-        plan,
-        project,
+      const notes = await install({
         source,
+        manifests,
+        project,
         overwrite: flags.overwrite,
         dryRun: flags['dry-run'],
       });
 
       this.spinner.stop('Done');
       this.log(`Successfully added ${args.component}${flags['dry-run'] ? ' (dry-run)' : ''}`);
+      if (notes && notes.length) {
+        this.log('Manual steps:');
+        for (const n of notes) {
+          this.log(`  - ${n}`);
+        }
+      }
 
       return {
-        installed: plan.map((c: any) => ({ name: c.name, version: c.version })),
+        installed: manifests.map((c: any) => ({ name: c.name, version: c.version })),
         dryRun: flags['dry-run'],
       };
     } catch (err) {

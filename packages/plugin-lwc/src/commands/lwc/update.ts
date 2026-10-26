@@ -1,7 +1,8 @@
-import { SfCommand, Flags, Args } from '@salesforce/sf-plugins-core';
+import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
+import { Args } from '@oclif/core';
 import { Messages, SfProject, SfError } from '@salesforce/core';
 // @ts-ignore
-import { update } from '../../../../src/update.js';
+import { update } from 'sf-lwc/update.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('plugin-lwc', 'lwc.update');
@@ -58,21 +59,30 @@ export default class LwcUpdate extends SfCommand<LwcUpdateResult> {
 
       this.spinner.stop('Done');
 
-      if (result.updated.length === 0) {
+      const mappedUpdated = (result.updated || []).map((u: any) => ({
+        name: u.name,
+        oldVersion: u.from,
+        newVersion: u.to,
+      }));
+
+      if (mappedUpdated.length === 0) {
         this.log('All components are up to date.');
       } else {
-        this.log(`Updated ${result.updated.length} component(s).`);
-        for (const u of result.updated) {
+        this.log(`Updated ${mappedUpdated.length} component(s).`);
+        for (const u of mappedUpdated) {
           this.log(`  ✓ ${u.name} (${u.oldVersion} -> ${u.newVersion})`);
         }
       }
 
-      return result;
+      return {
+        updated: mappedUpdated,
+        upToDate: result.upToDate || [],
+      };
     } catch (err) {
       this.spinner.stop('Failed');
       throw new SfError(
-        `Update failed: ${(err as Error).message}`,
-        'UpdateCommandFailed'
+        `Failed to update components: ${(err as Error).message}`,
+        'ComponentUpdateFailed'
       );
     }
   }
