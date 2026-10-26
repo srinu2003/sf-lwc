@@ -3,10 +3,16 @@
   "version": "0.2.0-beta.1",
   "description": "Add open-source LWC components (and their Apex, labels, and dependencies) to a Salesforce DX project.",
   "type": "module",
+  "exports": {
+    "./*.js": "./src/*.js",
+    "./*": "./src/*"
+  },
   "bin": {
     "sf-lwc": "bin/sf-lwc.js"
   },
   "scripts": {
+    "build": "npm run --workspace=plugin-lwc build",
+    "pretest": "npm run build",
     "test": "node --test"
   },
   "engines": {
