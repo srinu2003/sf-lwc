@@ -30,7 +30,9 @@ export async function install({ source, manifests, project, overwrite = false, d
     for (const rel of m.files) {
       const dest = path.join(project.targetRoot, rel);
       if ((await exists(dest)) && !overwrite) { log(`    skip (exists)  ${rel}`); continue; }
-      const data = await source.read(`components/${m.name}/files/${rel}`);
+      const data = typeof source.readComponentFile === 'function'
+        ? await source.readComponentFile(m, rel)
+        : await source.read(`components/${m.name}/files/${rel}`);
       log(`    ${verb}  ${rel}`);
       if (!dryRun) {
         await mkdir(path.dirname(dest), { recursive: true });

@@ -1,4 +1,7 @@
-const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
+import { readdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
+
+export const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]*$/;
 
 function safePath(p) {
   return typeof p === 'string' && p && !p.startsWith('/') && !p.includes('\\') && !p.split('/').includes('..');
@@ -17,15 +20,120 @@ export function validate(m, expectedName) {
 
 export async function loadManifest(source, name) {
   if (!NAME_RE.test(name)) throw new Error(`Invalid component name "${name}"`);
-  let buf;
+
+  // 1. Try standard registry manifest: components/<name>/manifest.json
   try {
-    buf = await source.read(`components/${name}/manifest.json`);
+    const buf = await source.read(`components/${name}/manifest.json`);
+    const m = JSON.parse(buf.toString('utf8'));
+    validate(m, name);
+    return m;
   } catch (e) {
-    throw new Error(`Component "${name}" not found in registry (${source.label}).`);
+    // Fall back to direct DX repository auto-discovery below
   }
-  const m = JSON.parse(buf.toString('utf8'));
-  validate(m, name);
-  return m;
+
+  // 2. Direct DX Fallback: Inspect local SFDX repository
+  if (source.type === 'local' && source.root) {
+    const candidatePrefixes = [
+      'force-app/main/default/lwc',
+      'main/default/lwc'
+    ];
+
+    for (const prefix of candidatePrefixes) {
+      try {
+        const compDir = path.join(source.root, prefix, name);
+        const entries = await readdir(compDir, { withFileTypes: true });
+        const files = entries
+          .filter((e) => e.isFile())
+          .map((e) => `lwc/${name}/${e.name}`);
+        if (!files.length) continue;
+
+        let apiVersion = '62.0';
+        let description = `Component from ${source.label}`;
+
+        try {
+          const metaXml = await readFile(path.join(compDir, `${name}.js-meta.xml`), 'utf8');
+          const descMatch = metaXml.match(/<description>([\s\S]*?)<\/description>/i);
+          if (descMatch) description = descMatch[1].trim();
+          const apiMatch = metaXml.match(/<apiVersion>([\s\S]*?)<\/apiVersion>/i);
+          if (apiMatch) {
+            const parsedApi = apiMatch[1].trim();
+            apiVersion = parsedApi.includes('.') ? parsedApi : `${parsedApi}.0`;
+          }
+        } catch {}
+
+        const synthesized = {
+          name,
+          version: '1.0.0',
+          description,
+          apiVersion,
+          files,
+          dependencies: [],
+          _rawPrefix: `${prefix}/${name}`
+        };
+
+        validate(synthesized, name);
+        return synthesized;
+      } catch {}
+    }
+  }
+
+  // 3. Direct DX Fallback: Inspect remote SFDX repository tree
+  if (source.fetchApi) {
+    const candidatePrefixes = [
+      'force-app/main/default/lwc',
+      'main/default/lwc'
+    ];
+
+    for (const prefix of candidatePrefixes) {
+      try {
+        const entries = await source.fetchApi(`contents/${prefix}/${name}`);
+        if (Array.isArray(entries) && entries.length > 0) {
+          const files = [];
+          for (const item of entries) {
+            if (item.type === 'file') {
+              files.push(`lwc/${name}/${item.name}`);
+            }
+          }
+
+          if (files.length === 0) continue;
+
+          let apiVersion = '62.0';
+          let description = `Component from ${source.label}`;
+
+          try {
+            const metaBuf = await source.read(`${prefix}/${name}/${name}.js-meta.xml`);
+            const metaXml = metaBuf.toString('utf8');
+            const descMatch = metaXml.match(/<description>([\s\S]*?)<\/description>/i);
+            if (descMatch) description = descMatch[1].trim();
+            const apiMatch = metaXml.match(/<apiVersion>([\s\S]*?)<\/apiVersion>/i);
+            if (apiMatch) {
+              const parsedApi = apiMatch[1].trim();
+              apiVersion = parsedApi.includes('.') ? parsedApi : `${parsedApi}.0`;
+            }
+          } catch {
+            // Use defaults
+          }
+
+          const synthesized = {
+            name,
+            version: '1.0.0',
+            description,
+            apiVersion,
+            files,
+            dependencies: [],
+            _rawPrefix: `${prefix}/${name}`
+          };
+
+          validate(synthesized, name);
+          return synthesized;
+        }
+      } catch (err) {
+        // If 404, try next prefix
+      }
+    }
+  }
+
+  throw new Error(`Component "${name}" not found in registry (${source.label}).`);
 }
 
 // Depth-first; dependencies come before dependents. Detects cycles.
