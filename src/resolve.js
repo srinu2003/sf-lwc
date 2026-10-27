@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-export const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]*$/;
+export const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
 
 function safePath(p) {
   return typeof p === 'string' && p && !p.startsWith('/') && !p.includes('\\') && !p.split('/').includes('..');

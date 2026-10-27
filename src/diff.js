@@ -141,14 +141,23 @@ export async function diff(name, options = {}) {
   for (const file of manifest.files) {
     let registryContent;
     try {
-      if (typeof source.readFile === 'function') {
+      if (typeof source.readComponentFile === 'function') {
+        registryContent = await source.readComponentFile(manifest, file);
+      } else if (typeof source.readFile === 'function') {
         registryContent = await source.readFile(`components/${name}/files/${file}`);
       } else {
         registryContent = await source.read(`components/${name}/files/${file}`);
       }
     } catch {
       // Fallback for mocks
-      registryContent = await source.readFile(file);
+      if (typeof source.readFile === 'function') {
+        registryContent = await source.readFile(file);
+      } else if (typeof source.read === 'function') {
+        registryContent = await source.read(file);
+      }
+    }
+    if (Buffer.isBuffer(registryContent)) {
+      registryContent = registryContent.toString('utf8');
     }
 
     const localPath = path.join(project.targetRoot, file);

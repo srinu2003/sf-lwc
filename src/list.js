@@ -1,7 +1,6 @@
-import { readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { validate, NAME_RE } from './resolve.js';
-import { normalizeSpec } from './source.js';
+import { validate } from './resolve.js';
+import { normalizeSpec, createSource } from './source.js';
 
 const IS_LOCAL_PATH_RE = /^(\.|\/|~)|^[a-zA-Z]:[\\/]/;
 
@@ -9,110 +8,114 @@ function isLocalSpec(spec) {
   return IS_LOCAL_PATH_RE.test(normalizeSpec(spec));
 }
 
-async function discoverLocalComponentNames(rawSpec) {
-  const spec = normalizeSpec(rawSpec);
-  const root = path.resolve(spec);
-
-  // 1. Try registry format: components/
-  try {
-    const componentsDir = path.join(root, 'components');
-    const entries = await readdir(componentsDir, { withFileTypes: true });
-    const found = entries
-      .filter((entry) => entry.isDirectory() && NAME_RE.test(entry.name))
-      .map((entry) => entry.name);
-    if (found.length) return found.sort();
-  } catch {}
-
-  // 2. Direct DX fallback: force-app/main/default/lwc, main/default/lwc
-  for (const sub of ['force-app/main/default/lwc', 'main/default/lwc']) {
-    try {
-      const lwcDir = path.join(root, sub);
-      const entries = await readdir(lwcDir, { withFileTypes: true });
-      const found = entries
-        .filter((entry) => entry.isDirectory() && NAME_RE.test(entry.name))
-        .map((entry) => entry.name);
-      if (found.length) return found.sort();
-    } catch {}
-  }
-
-  return [];
+function decodeXml(str) {
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
 }
 
-async function discoverRemoteComponentNames(rawSpec) {
-  const spec = normalizeSpec(rawSpec);
-  const m = spec.match(/^([\w.-]+)\/([\w.-]+)(?:@(.+))?$/);
-  if (!m) throw new Error(`Invalid registry "${rawSpec}". Use owner/repo[@ref], a GitHub URL, or a local path.`);
-  const [, owner, repo, ref] = m;
-  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
-  const headers = {
-    Accept: 'application/vnd.github+json',
-    'User-Agent': 'sf-lwc',
-    ...(token ? { Authorization: 'token ' + token } : {})
+export function parseMetaXml(xml) {
+  if (!xml || typeof xml !== 'string') {
+    return { description: '', masterLabel: '', apiVersion: '62.0' };
+  }
+  const descMatch = xml.match(/<description>([\s\S]*?)<\/description>/i);
+  const labelMatch = xml.match(/<masterLabel>([\s\S]*?)<\/masterLabel>/i);
+  const apiMatch = xml.match(/<apiVersion>([\s\S]*?)<\/apiVersion>/i);
+
+  const masterLabel = labelMatch ? decodeXml(labelMatch[1].trim()) : '';
+  let description = '';
+  if (descMatch) {
+    description = decodeXml(descMatch[1].trim());
+  } else if (masterLabel) {
+    description = masterLabel;
+  }
+
+  let apiVersion = '62.0';
+  if (apiMatch) {
+    const rawApi = apiMatch[1].trim();
+    apiVersion = rawApi.includes('.') ? rawApi : `${rawApi}.0`;
+  }
+
+  return {
+    description,
+    masterLabel,
+    apiVersion
   };
-
-  const candidatePaths = [
-    'components',
-    'force-app/main/default/lwc',
-    'main/default/lwc'
-  ];
-
-  let lastStatus = 404;
-  for (const candidate of candidatePaths) {
-    const refParam = ref ? `?ref=${encodeURIComponent(ref)}` : '';
-    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${candidate}${refParam}`, { headers });
-    if (res.ok) {
-      const entries = await res.json();
-      if (Array.isArray(entries)) {
-        const names = entries
-          .filter((entry) => entry?.type === 'dir' && NAME_RE.test(entry.name))
-          .map((entry) => entry.name)
-          .sort();
-        if (names.length) return names;
-      }
-    } else {
-      lastStatus = res.status;
-      if (res.status === 403) {
-        throw new Error('GitHub API rate limit exceeded. Set GITHUB_TOKEN to increase limit.');
-      }
-      if (res.status === 401) {
-        throw new Error('GitHub authentication failed. Check GITHUB_TOKEN.');
-      }
-    }
-  }
-
-  throw new Error(`${lastStatus} listing components from ${owner}/${repo}${ref ? '@' + ref : ''}` + (lastStatus === 404 && !token ? ' (private repo? set GITHUB_TOKEN)' : ''));
 }
 
-async function discoverComponentNames(spec) {
-  return isLocalSpec(spec) ? discoverLocalComponentNames(spec) : discoverRemoteComponentNames(spec);
+export async function discoverComponentNames(spec) {
+  const source = createSource(spec);
+  const { bundles } = await source.listLwcBundles(spec);
+  return bundles.map((b) => b.name).sort();
 }
 
 export async function listComponents(source, spec) {
-  const names = await discoverComponentNames(spec);
-  const components = [];
-  for (const name of names) {
-    let manifest;
-    try {
-      const buf = await source.read(`components/${name}/manifest.json`);
-      manifest = JSON.parse(buf.toString('utf8'));
-      validate(manifest, name);
-    } catch {
-      // Direct DX Fallback synthesized entry
-      manifest = {
-        name,
-        description: '',
-        version: '1.0.0',
-        dependencies: []
-      };
-    }
-    components.push({
-      name: manifest.name,
-      description: manifest.description ?? '',
-      version: manifest.version,
-      dependencies: manifest.dependencies ?? []
-    });
+  const targetSpec = spec || source?.spec || source?.rawSpec || source?.label || source?.root || '';
+
+  let bundleResult;
+  if (source && typeof source.listLwcBundles === 'function') {
+    bundleResult = await source.listLwcBundles(targetSpec);
+  } else {
+    const fallbackSource = createSource(targetSpec);
+    bundleResult = await fallbackSource.listLwcBundles(targetSpec);
   }
-  return components.sort((a, b) => a.name.localeCompare(b.name));
+
+  const { layout, bundles } = bundleResult;
+
+  if (layout === 'sfdx') {
+    const components = await Promise.all(
+      bundles.map(async (bundle) => {
+        let description = '';
+        let apiVersion = '62.0';
+        try {
+          const relPath = path.isAbsolute(bundle.metaXmlPath) && source?.root
+            ? path.relative(source.root, bundle.metaXmlPath).replace(/\\/g, '/')
+            : bundle.metaXmlPath;
+          const buf = await source.read(relPath);
+          const meta = parseMetaXml(buf.toString('utf8'));
+          description = meta.description || meta.masterLabel || '';
+          apiVersion = meta.apiVersion || '62.0';
+        } catch {
+          // Gracefully default if metaXml is missing or unparseable
+        }
+        return {
+          name: bundle.name,
+          description,
+          version: '1.0.0',
+          apiVersion,
+          dependencies: []
+        };
+      })
+    );
+    return components.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  if (layout === 'registry') {
+    const components = await Promise.all(
+      bundles.map(async (bundle) => {
+        const relPath = path.isAbsolute(bundle.manifestPath) && source?.root
+          ? path.relative(source.root, bundle.manifestPath).replace(/\\/g, '/')
+          : bundle.manifestPath;
+        const buf = await source.read(relPath);
+        const manifest = JSON.parse(buf.toString('utf8'));
+        validate(manifest, bundle.name);
+        return {
+          name: manifest.name,
+          description: manifest.description ?? '',
+          version: manifest.version,
+          apiVersion: manifest.apiVersion ?? '62.0',
+          dependencies: manifest.dependencies ?? []
+        };
+      })
+    );
+    return components.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  return [];
 }
 
 export function formatComponentList(components) {

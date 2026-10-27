@@ -1,5 +1,6 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat, readdir } from 'node:fs/promises';
 import path from 'node:path';
+import { NAME_RE } from './resolve.js';
 
 /**
  * Normalizes any git or registry specifier (GitHub URL, git SSH, owner/repo)
@@ -42,21 +43,86 @@ export function createSource(rawSpec) {
       type: 'local',
       label: root,
       root,
+      spec: rawSpec,
+      rawSpec,
       read,
       readFile: read,
       async readComponentFile(manifest, rel) {
         if (manifest._rawPrefix) {
-          return readFile(path.join(root, manifest._rawPrefix, path.basename(rel)));
+          const subPath = rel.startsWith(`lwc/${manifest.name}/`)
+            ? rel.slice(`lwc/${manifest.name}/`.length)
+            : path.basename(rel);
+          return readFile(path.join(root, manifest._rawPrefix, subPath));
         }
         return read(`components/${manifest.name}/files/${rel}`);
+      },
+      async listLwcBundles(specOverride) {
+        const displayPath = specOverride || rawSpec || root;
+        let rootStat;
+        try {
+          rootStat = await stat(root);
+        } catch {
+          throw new Error(`Local directory '${displayPath}' does not exist.`);
+        }
+        if (!rootStat.isDirectory()) {
+          throw new Error(`Local directory '${displayPath}' does not exist.`);
+        }
+
+        // 1. Standard SFDX layout: force-app/main/default/lwc
+        const sfdxDir = path.join(root, 'force-app', 'main', 'default', 'lwc');
+        try {
+          const entries = await readdir(sfdxDir, { withFileTypes: true });
+          const bundles = [];
+          for (const entry of entries) {
+            if (entry.isDirectory() && NAME_RE.test(entry.name)) {
+              bundles.push({
+                name: entry.name,
+                layout: 'sfdx',
+                prefix: `force-app/main/default/lwc/${entry.name}`,
+                metaXmlPath: path.join(sfdxDir, entry.name, `${entry.name}.js-meta.xml`)
+              });
+            }
+          }
+          if (bundles.length > 0) {
+            return {
+              layout: 'sfdx',
+              bundles: bundles.sort((a, b) => a.name.localeCompare(b.name))
+            };
+          }
+        } catch {}
+
+        // 2. Curated registry layout: components/
+        const regDir = path.join(root, 'components');
+        try {
+          const entries = await readdir(regDir, { withFileTypes: true });
+          const bundles = [];
+          for (const entry of entries) {
+            if (entry.isDirectory() && NAME_RE.test(entry.name)) {
+              bundles.push({
+                name: entry.name,
+                layout: 'registry',
+                manifestPath: path.join(regDir, entry.name, 'manifest.json')
+              });
+            }
+          }
+          if (bundles.length > 0) {
+            return {
+              layout: 'registry',
+              bundles: bundles.sort((a, b) => a.name.localeCompare(b.name))
+            };
+          }
+        } catch {}
+
+        throw new Error(`Directory '${displayPath}' does not contain an LWC bundle (expected standard layout: force-app/main/default/lwc).`);
       }
     };
   }
 
   const m = spec.match(/^([\w.-]+)\/([\w.-]+)(?:@(.+))?$/);
   if (!m) throw new Error(`Invalid registry "${rawSpec}". Use owner/repo[@ref], a GitHub URL, or a local path.`);
-  const [, owner, repo, ref = 'main'] = m;
-  const base = `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/`;
+  const [, owner, repo, explicitRef] = m;
+  const ref = explicitRef || 'main';
+  const base = `https://raw.githubusercontent.com/${owner}/${repo}/${explicitRef ? explicitRef : 'HEAD'}/`;
   const apiBase = `https://api.github.com/repos/${owner}/${repo}`;
 
   return {
@@ -64,6 +130,9 @@ export function createSource(rawSpec) {
     owner,
     repo,
     ref,
+    hasExplicitRef: Boolean(explicitRef),
+    spec: rawSpec,
+    rawSpec,
     label: `${owner}/${repo}@${ref}`,
     async read(rel) {
       const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
@@ -100,9 +169,100 @@ export function createSource(rawSpec) {
     },
     async readComponentFile(manifest, rel) {
       if (manifest._rawPrefix) {
-        return this.read(`${manifest._rawPrefix}/${path.basename(rel)}`);
+        const subPath = rel.startsWith(`lwc/${manifest.name}/`)
+          ? rel.slice(`lwc/${manifest.name}/`.length)
+          : path.basename(rel);
+        return this.read(`${manifest._rawPrefix}/${subPath}`);
       }
       return this.read(`components/${manifest.name}/files/${rel}`);
+    },
+    async getTree(specOverride) {
+      if (this._treePromise) return this._treePromise;
+      this._treePromise = (async () => {
+        const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+        const targetRef = explicitRef ? encodeURIComponent(explicitRef) : 'HEAD';
+        const url = `${apiBase}/git/trees/${targetRef}?recursive=1`;
+        const res = await fetch(url, {
+          headers: {
+            Accept: 'application/vnd.github+json',
+            'User-Agent': 'sf-lwc',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
+        });
+        if (!res.ok) {
+          const displaySpec = specOverride || rawSpec;
+          if (res.status === 403) {
+            const remaining = res.headers.get('x-ratelimit-remaining');
+            if (remaining === '0') {
+              throw new Error('GitHub API rate limit exceeded. Set GITHUB_TOKEN to increase limit.');
+            }
+          }
+          if (res.status === 404 || res.status === 401 || res.status === 403) {
+            throw new Error(`Repository '${displaySpec}' not found or inaccessible (check repository name or set GITHUB_TOKEN for private repos).`);
+          }
+          throw new Error(`Failed to fetch tree from ${owner}/${repo}: HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        return Array.isArray(data.tree) ? data.tree : [];
+      })();
+      return this._treePromise;
+    },
+    async listLwcBundles(specOverride) {
+      const displaySpec = specOverride || rawSpec;
+      const tree = await this.getTree(displaySpec);
+
+      // 1. Primary standard layout: force-app/main/default/lwc
+      const sfdxMap = new Map();
+      for (const item of tree) {
+        const match = item.path.match(/^force-app\/main\/default\/lwc\/([^/]+)(?:\/(.*))?$/);
+        if (!match) continue;
+        const compName = match[1];
+        if (!NAME_RE.test(compName)) continue;
+        if (!sfdxMap.has(compName)) {
+          sfdxMap.set(compName, {
+            name: compName,
+            layout: 'sfdx',
+            prefix: `force-app/main/default/lwc/${compName}`,
+            metaXmlPath: `force-app/main/default/lwc/${compName}/${compName}.js-meta.xml`,
+            files: []
+          });
+        }
+        const relPath = match[2];
+        if (relPath && item.type === 'blob') {
+          sfdxMap.get(compName).files.push(`lwc/${compName}/${path.basename(relPath)}`);
+        }
+      }
+
+      if (sfdxMap.size > 0) {
+        return {
+          layout: 'sfdx',
+          bundles: Array.from(sfdxMap.values()).sort((a, b) => a.name.localeCompare(b.name))
+        };
+      }
+
+      // 2. Curated registry layout: components/<name>/manifest.json
+      const regMap = new Map();
+      for (const item of tree) {
+        const match = item.path.match(/^components\/([^/]+)\/manifest\.json$/);
+        if (!match) continue;
+        const compName = match[1];
+        if (NAME_RE.test(compName)) {
+          regMap.set(compName, {
+            name: compName,
+            layout: 'registry',
+            manifestPath: item.path
+          });
+        }
+      }
+
+      if (regMap.size > 0) {
+        return {
+          layout: 'registry',
+          bundles: Array.from(regMap.values()).sort((a, b) => a.name.localeCompare(b.name))
+        };
+      }
+
+      throw new Error(`Repository '${displaySpec}' does not contain any LWC components (expected standard layout: force-app/main/default/lwc).`);
     }
   };
 }
