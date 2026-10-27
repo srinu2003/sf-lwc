@@ -11,13 +11,14 @@ import { pack } from '../src/pack.js';
 import { diff } from '../src/diff.js';
 import { update } from '../src/update.js';
 import { doctor } from '../src/doctor.js';
+import { selectComponents } from '../src/selector.js';
 
 const HELP = `sf-lwc — add open-source LWC components to a Salesforce DX project
 
 Usage:
   sf-lwc init [options]
   sf-lwc doctor [options]
-  sf-lwc add <component...> [options]
+  sf-lwc add [component...] [options]
   sf-lwc update [component...] [options]
   sf-lwc remove <component...> [options]
   sf-lwc rm <component...> [options]
@@ -58,7 +59,15 @@ async function main() {
       help: { type: 'boolean', short: 'h', default: false }
     }
   });
-  const [cmd, ...names] = positionals;
+  const [cmd, ...rawNames] = positionals;
+  const names = Array.from(
+    new Set(
+      rawNames
+        .flatMap((token) => token.split(','))
+        .map((name) => name.trim())
+        .filter(Boolean)
+    )
+  );
   if (values.help || !cmd) return console.log(HELP);
   if (!['init', 'add', 'remove', 'rm', 'diff', 'update', 'doctor', 'list', 'ls', 'pack', 'export'].includes(cmd)) {
     throw new Error(`Unknown command "${cmd}". Try --help.`);
@@ -67,7 +76,7 @@ async function main() {
   if ((cmd === 'pack' || cmd === 'export') && !names.length) {
     throw new Error('Specify a component name to pack, e.g. sf-lwc pack myComponent');
   }
-  if (['add', 'remove', 'rm'].includes(cmd) && !names.length) {
+  if (['remove', 'rm'].includes(cmd) && !names.length) {
     throw new Error(`Specify at least one component, e.g. sf-lwc ${cmd} data-table`);
   }
 
@@ -228,9 +237,25 @@ async function main() {
 
   const source = createSource(spec);
   if (cmd === 'add') {
+    let targetNames = names;
+    if (!targetNames.length) {
+      if (!process.stdin.isTTY || !process.stdout.isTTY || process.env.CI || values.json) {
+        throw new Error('No component specified and terminal is non-interactive. Specify at least one component, e.g. sf-lwc add <component>');
+      }
+      const components = await listComponents(source, values.from || spec);
+      if (!components.length) {
+        throw new Error(`No components found in registry "${source.label}".`);
+      }
+      targetNames = await selectComponents(components);
+      if (!targetNames.length) {
+        console.log('No components selected.');
+        return;
+      }
+    }
+
     console.log(`Registry: ${source.label}\nProject:  ${project.root}\n`);
 
-    const manifests = await resolve(source, names);
+    const manifests = await resolve(source, targetNames);
     const notes = await install({
       source, manifests, project,
       overwrite: values.overwrite, dryRun: values['dry-run']
