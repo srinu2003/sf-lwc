@@ -3,6 +3,38 @@ import path from 'node:path';
 
 export const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
 
+export function toKebabCase(str) {
+  return (str || '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
+    .replace(/[\s_]+/g, '-')
+    .toLowerCase();
+}
+
+export function matchComponentName(candidates, input) {
+  if (!input || !candidates?.length) return input;
+  // 1. Exact match
+  const exact = candidates.find((c) => c === input);
+  if (exact) return exact;
+
+  // 2. Exact case-insensitive match
+  const lowerInput = input.toLowerCase();
+  const lowerMatch = candidates.find((c) => c.toLowerCase() === lowerInput);
+  if (lowerMatch) return lowerMatch;
+
+  // 3. Kebab-case match
+  const kebabInput = toKebabCase(input);
+  const kebabMatch = candidates.find((c) => toKebabCase(c) === kebabInput);
+  if (kebabMatch) return kebabMatch;
+
+  // 4. Normalized match (strip all hyphens, underscores, and lowercase)
+  const normInput = lowerInput.replace(/[-_]/g, '');
+  const normMatch = candidates.find((c) => c.toLowerCase().replace(/[-_]/g, '') === normInput);
+  if (normMatch) return normMatch;
+
+  return input;
+}
+
 function safePath(p) {
   return typeof p === 'string' && p && !p.startsWith('/') && !p.includes('\\') && !p.split('/').includes('..');
 }
@@ -133,11 +165,34 @@ export async function loadManifest(source, name) {
     }
   }
 
+  // 4. Casing-agnostic fallback: Check if a bundle matches under camelCase, kebab-case, or case-insensitive name
+  if (typeof source?.listLwcBundles === 'function') {
+    try {
+      const { bundles } = await source.listLwcBundles();
+      const bundleNames = bundles.map((b) => b.name);
+      const matched = matchComponentName(bundleNames, name);
+      if (matched && matched !== name) {
+        return await loadManifest(source, matched);
+      }
+    } catch {}
+  }
+
   throw new Error(`Component "${name}" not found in registry (${source.label}).`);
 }
 
 // Depth-first; dependencies come before dependents. Detects cycles.
 export async function resolve(source, names) {
+  let resolvedNames = names;
+  if (typeof source?.listLwcBundles === 'function') {
+    try {
+      const { bundles } = await source.listLwcBundles();
+      const bundleNames = bundles.map((b) => b.name);
+      resolvedNames = names.map((n) => matchComponentName(bundleNames, n));
+    } catch {
+      // If listLwcBundles fails or cannot be read, proceed with original names
+    }
+  }
+
   const ordered = [];
   const state = new Map();
   async function visit(name, stack) {
@@ -149,6 +204,6 @@ export async function resolve(source, names) {
     state.set(name, 'done');
     ordered.push(m);
   }
-  for (const n of names) await visit(n, []);
+  for (const n of resolvedNames) await visit(n, []);
   return ordered;
 }

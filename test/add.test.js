@@ -6,6 +6,8 @@ import os from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { isSourceSpec } from '../src/source.js';
+import { matchComponentName } from '../src/resolve.js';
 
 const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -163,4 +165,72 @@ test('cli add with commas-only in non-interactive environment fails fast', async
   } finally {
     fs.rmSync(tmpProject, { recursive: true, force: true });
   }
+});
+
+test('cli add supports positional source and component without --from', async () => {
+  const { tmpProject, pkgDefault } = createTempProject('add-pos-');
+
+  try {
+    const { stdout } = await execFileAsync(
+      'node',
+      [BIN, 'add', root, 'modal', '--cwd', tmpProject]
+    );
+
+    assert.match(stdout, /\+ modal@1\.0\.0/);
+    assert.match(stdout, /Done\./);
+    assert.ok(fs.existsSync(path.join(pkgDefault, 'lwc', 'modal', 'modal.js')));
+  } finally {
+    fs.rmSync(tmpProject, { recursive: true, force: true });
+  }
+});
+
+test('isSourceSpec accurately differentiates repositories/paths from component names', () => {
+  // Sources (should return true)
+  assert.equal(isSourceSpec('owner/repo'), true);
+  assert.equal(isSourceSpec('svierk/awesome-lwc-collection'), true);
+  assert.equal(isSourceSpec('svierk/awesome-lwc-collection@v1.0.0'), true);
+  assert.equal(isSourceSpec('https://github.com/owner/repo'), true);
+  assert.equal(isSourceSpec('http://github.com/owner/repo'), true);
+  assert.equal(isSourceSpec('git@github.com:owner/repo.git'), true);
+  assert.equal(isSourceSpec('github:owner/repo'), true);
+  assert.equal(isSourceSpec('./local/path'), true);
+  assert.equal(isSourceSpec('../parent/path'), true);
+  assert.equal(isSourceSpec('/absolute/unix/path'), true);
+  assert.equal(isSourceSpec('C:\\Users\\test\\project'), true);
+  assert.equal(isSourceSpec('D:/Projects/lwc'), true);
+
+  // Component names (should return false)
+  assert.equal(isSourceSpec('modal'), false);
+  assert.equal(isSourceSpec('toastUtils'), false);
+  assert.equal(isSourceSpec('toast-utils'), false);
+  assert.equal(isSourceSpec('qrCodeGenerator'), false);
+  assert.equal(isSourceSpec('qr-code-generator'), false);
+  assert.equal(isSourceSpec('bw_DocuMakeAgent'), false);
+  assert.equal(isSourceSpec('bw-docu-make-agent'), false);
+  assert.equal(isSourceSpec(''), false);
+  assert.equal(isSourceSpec(null), false);
+});
+
+test('matchComponentName matches exact, case-insensitive, kebab-case, and normalized names', () => {
+  const candidates = ['qrCodeGenerator', 'bw_DocuMakeAgent', 'modal', 'html-builder'];
+
+  // Exact match
+  assert.equal(matchComponentName(candidates, 'modal'), 'modal');
+  assert.equal(matchComponentName(candidates, 'qrCodeGenerator'), 'qrCodeGenerator');
+
+  // Case-insensitive
+  assert.equal(matchComponentName(candidates, 'MODAL'), 'modal');
+
+  // Kebab-case to camelCase
+  assert.equal(matchComponentName(candidates, 'qr-code-generator'), 'qrCodeGenerator');
+
+  // CamelCase to kebab-case
+  assert.equal(matchComponentName(candidates, 'htmlBuilder'), 'html-builder');
+
+  // Underscore / complex casing
+  assert.equal(matchComponentName(candidates, 'bw-docu-make-agent'), 'bw_DocuMakeAgent');
+  assert.equal(matchComponentName(candidates, 'bw_documakeagent'), 'bw_DocuMakeAgent');
+
+  // Unmatched remains input
+  assert.equal(matchComponentName(candidates, 'unknownComponent'), 'unknownComponent');
 });

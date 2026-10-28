@@ -4,7 +4,7 @@ import { Messages, SfProject, SfError } from '@salesforce/core';
 // @ts-ignore
 import { findProject } from 'sf-lwc/project.js';
 // @ts-ignore
-import { createSource } from 'sf-lwc/source.js';
+import { createSource, isSourceSpec } from 'sf-lwc/source.js';
 // @ts-ignore
 import { resolve } from 'sf-lwc/resolve.js';
 // @ts-ignore
@@ -31,6 +31,10 @@ export default class LwcAdd extends SfCommand<LwcAddResult> {
   public static readonly strict = false;
 
   public static readonly args = {
+    sourceOrComponent: Args.string({
+      description: messages.getMessage('args.sourceOrComponent.description'),
+      required: false,
+    }),
     component: Args.string({
       description: messages.getMessage('args.component.description'),
       required: false,
@@ -63,13 +67,26 @@ export default class LwcAdd extends SfCommand<LwcAddResult> {
           rawTokens.push(item);
         }
       }
-    } else if (args.component) {
-      rawTokens.push(args.component);
+    } else {
+      if (args.sourceOrComponent) rawTokens.push(args.sourceOrComponent);
+      if (args.component) rawTokens.push(args.component);
+    }
+
+    let detectedSource = flags.from || undefined;
+    const remainingComponentTokens: string[] = [];
+
+    for (let i = 0; i < rawTokens.length; i++) {
+      const token = rawTokens[i];
+      if (i === 0 && !flags.from && isSourceSpec(token)) {
+        detectedSource = token;
+      } else {
+        remainingComponentTokens.push(token);
+      }
     }
 
     const componentNames: string[] = Array.from(
       new Set(
-        rawTokens
+        remainingComponentTokens
           .flatMap((token) => token.split(','))
           .map((name) => name.trim())
           .filter(Boolean)
@@ -95,18 +112,25 @@ export default class LwcAdd extends SfCommand<LwcAddResult> {
 
     const project = await findProject(cwd);
     const config = await readConfig(cwd).catch(() => null);
-    const spec = flags.from || config?.registry || process.env.SF_LWC_REGISTRY || '.';
-    const source = createSource(spec);
 
+    const spec = detectedSource || config?.registry || process.env.SF_LWC_REGISTRY;
+    if (!spec) {
+      throw new SfError(
+        'No source repository specified. Pass a repository or project path, e.g.: sf lwc add <owner/repo> [component] or sf lwc add --from <owner/repo>',
+        'NoSourceSpecified'
+      );
+    }
+
+    const source = createSource(spec);
     let targetNames = componentNames;
 
     if (targetNames.length === 0) {
       this.spinner.start(`Discovering available components from ${source.label}`);
-      const components = await listComponents(source, flags.from || spec);
+      const components = await listComponents(source, spec);
       this.spinner.stop();
 
       if (!components || components.length === 0) {
-        this.log(`No components found in registry "${source.label}".`);
+        this.log(`No components found in repository "${source.label}".`);
         return { installed: [], dryRun: flags['dry-run'] };
       }
 

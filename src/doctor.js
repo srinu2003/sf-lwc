@@ -65,8 +65,8 @@ export async function doctor(options = {}) {
   } else {
     checks.push({
       name: 'sf-lwc.json',
-      status: 'warn',
-      message: 'No sf-lwc.json found. Run "sf-lwc init" to set a default registry.'
+      status: 'pass',
+      message: 'No local sf-lwc.json (using per-command repository sources).'
     });
   }
 

@@ -31,6 +31,21 @@ export function normalizeSpec(spec) {
   return s;
 }
 
+/**
+ * Determines whether a string token represents a repository source (GitHub URL, owner/repo, or local path)
+ * vs a standalone component name (e.g. "modal", "qrCodeGenerator").
+ */
+export function isSourceSpec(spec) {
+  if (!spec || typeof spec !== 'string') return false;
+  const trimmed = spec.trim();
+  if (/^(\.|\/|~|[a-zA-Z]:[\\/])/.test(trimmed)) return true;
+  if (/^https?:\/\//i.test(trimmed)) return true;
+  if (/^git@/i.test(trimmed)) return true;
+  if (/^github:/i.test(trimmed)) return true;
+  if (/^[\w.-]+\/[\w.-]+(@.+)?$/.test(trimmed)) return true;
+  return false;
+}
+
 // A "source" is a registry: a local folder or a GitHub repo (owner/repo[@ref]).
 // Layout: components/<name>/manifest.json and components/<name>/files/<path>
 // Also supports direct Salesforce DX repos (e.g. force-app/main/default/lwc/<name>).
