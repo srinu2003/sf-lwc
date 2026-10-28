@@ -77,8 +77,34 @@ export async function verifySourceProject(source) {
 }
 
 /**
- * Helper to recursively harvest files in a directory relative to a base directory.
+ * Strips comments from JavaScript code (single-line and multi-line).
  */
+export function stripJsComments(code) {
+  if (!code) return '';
+  return code
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^\\:])\/\/.*$/gm, '$1');
+}
+
+/**
+ * Strips comments from HTML markup.
+ */
+export function stripHtmlComments(html) {
+  if (!html) return '';
+  return html.replace(/<!--[\s\S]*?-->/g, '');
+}
+
+/**
+ * Strips comments and string literals from Apex source code to prevent
+ * commented-out code and string log messages from triggering false dependencies.
+ */
+export function stripApexCommentsAndStrings(apex) {
+  if (!apex) return '';
+  return apex
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^\\:])\/\/.*$/gm, '$1')
+    .replace(/'(?:''|[^'\\]|\\.)*'/g, "''");
+}
 export function getAllFilesRecursively(dir, baseDir = dir) {
   let results = [];
   if (!fs.existsSync(dir)) return results;
@@ -135,30 +161,37 @@ export async function packLocalComponent(sourceRoot, name, prefix, entries) {
       } catch {}
     } else if (entry.name.endsWith('.js') || entry.name.endsWith('.html')) {
       try {
-        const code = await readFile(fullPath, 'utf8');
-        const impMatches = [...code.matchAll(/from\s+['"]c\/([a-zA-Z0-9_-]+)['"]/g)];
-        for (const im of impMatches) {
-          if (im[1] !== name) dependencies.add(im[1]);
+        const raw = await readFile(fullPath, 'utf8');
+        const isJs = entry.name.endsWith('.js');
+        const code = isJs ? stripJsComments(raw) : stripHtmlComments(raw);
+
+        if (isJs) {
+          const impMatches = [...code.matchAll(/(?:from\s+|import\s*\(\s*)['"]c\/([a-zA-Z0-9_-]+)['"]/g)];
+          for (const im of impMatches) {
+            if (im[1] !== name) dependencies.add(im[1]);
+          }
+          const apexMatches = [...code.matchAll(/(?:from\s+|import\s*\(\s*)['"]@salesforce\/apex\/([a-zA-Z0-9_]+)\.[a-zA-Z0-9_]+['"]/g)];
+          for (const am of apexMatches) {
+            apexClasses.add(am[1]);
+          }
+          const resMatches = [...code.matchAll(/(?:from\s+|import\s*\(\s*)['"]@salesforce\/resourceUrl\/([a-zA-Z0-9_]+)['"]/g)];
+          for (const rm of resMatches) {
+            staticResources.add(rm[1]);
+          }
+          const mcMatches = [...code.matchAll(/(?:from\s+|import\s*\(\s*)['"]@salesforce\/messageChannel\/([a-zA-Z0-9_]+)['"]/g)];
+          for (const mm of mcMatches) {
+            messageChannels.add(mm[1]);
+          }
+        } else {
+          const tagMatches = [...code.matchAll(/<c-([a-z0-9-]+)/gi)];
+          for (const tm of tagMatches) {
+            dependencies.add(tm[1]);
+          }
         }
-        const tagMatches = [...code.matchAll(/<c-([a-z0-9-]+)/gi)];
-        for (const tm of tagMatches) {
-          dependencies.add(tm[1]);
-        }
-        const lblMatches = [...code.matchAll(/(?:@salesforce\/label\/c\.|\$Label\.c\.)([a-zA-Z0-9_]+)/g)];
+
+        const lblMatches = [...code.matchAll(/(?:@salesforce\/label\/c\.|\$Label\.c\.)([a-zA-Z0-9_]+)\b/g)];
         for (const lm of lblMatches) {
           labelNames.add(lm[1]);
-        }
-        const apexMatches = [...code.matchAll(/from\s+['"]@salesforce\/apex\/([a-zA-Z0-9_]+)\.[a-zA-Z0-9_]+['"]/g)];
-        for (const am of apexMatches) {
-          apexClasses.add(am[1]);
-        }
-        const resMatches = [...code.matchAll(/from\s+['"]@salesforce\/resourceUrl\/([a-zA-Z0-9_]+)['"]/g)];
-        for (const rm of resMatches) {
-          staticResources.add(rm[1]);
-        }
-        const mcMatches = [...code.matchAll(/from\s+['"]@salesforce\/messageChannel\/([a-zA-Z0-9_]+)['"]/g)];
-        for (const mm of mcMatches) {
-          messageChannels.add(mm[1]);
         }
       } catch {}
     }
@@ -201,10 +234,11 @@ export async function packLocalComponent(sourceRoot, name, prefix, entries) {
       if (fs.existsSync(testMeta)) files.push(`classes/${cls}Test.cls-meta.xml`);
 
       try {
-        const clsContent = fs.readFileSync(clsFile, 'utf8');
+        const rawCls = fs.readFileSync(clsFile, 'utf8');
+        const clsContent = stripApexCommentsAndStrings(rawCls);
         for (const other of allClasses) {
           if (other !== cls && !visitedClasses.has(other)) {
-            const re = new RegExp(`\\b${other}\\b`);
+            const re = new RegExp(`(?<![\\w.])${other}(?![\\w])`);
             if (re.test(clsContent)) {
               queue.push(other);
               apexClasses.add(other);
@@ -212,12 +246,12 @@ export async function packLocalComponent(sourceRoot, name, prefix, entries) {
           }
         }
         for (const obj of allObjects) {
-          const re = new RegExp(`\\b${obj}\\b`);
+          const re = new RegExp(`(?<![\\w.])${obj}(?![\\w])`);
           if (re.test(clsContent)) {
             customObjects.add(obj);
           }
         }
-        const clsLblMatches = [...clsContent.matchAll(/(?:System\.Label\.|Label\.)([a-zA-Z0-9_]+)/g)];
+        const clsLblMatches = [...clsContent.matchAll(/(?<![\w.])(?:System\.)?Label\.([a-zA-Z0-9_]+)\b/g)];
         for (const clm of clsLblMatches) {
           labelNames.add(clm[1]);
         }
