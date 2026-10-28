@@ -11,10 +11,11 @@ import { createSource } from '../src/source.js';
 
 const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const FIXTURE_REPO = path.join(root, 'fixtures', 'sfdx-repo');
 const BIN = path.join(root, 'bin', 'sf-lwc.js');
 
 test('modal manifest is valid conforming to schema and validate()', async () => {
-  const source = createSource(root);
+  const source = createSource(FIXTURE_REPO);
   const manifest = await loadManifest(source, 'modal');
 
   assert.equal(manifest.name, 'modal');
@@ -36,7 +37,7 @@ test('modal manifest is valid conforming to schema and validate()', async () => 
 });
 
 test('cli list includes modal in available components', async () => {
-  const { stdout } = await execFileAsync('node', [BIN, 'list', '--from', root]);
+  const { stdout } = await execFileAsync('node', [BIN, 'list', '--from', FIXTURE_REPO]);
   assert.match(stdout, /- modal@1\.0\.0/);
   assert.match(stdout, /Accessible, SLDS-compliant modal dialog component/);
 });
@@ -60,7 +61,7 @@ test('modal component can be installed and removed cleanly via sf-lwc add and re
     );
 
     // 1. Add modal
-    await execFileAsync('node', [BIN, 'add', 'modal', '--from', root, '--cwd', tmpProject]);
+    await execFileAsync('node', [BIN, 'add', 'modal', '--from', FIXTURE_REPO, '--cwd', tmpProject]);
 
     // Verify files installed
     assert.ok(fs.existsSync(path.join(pkgDefault, 'lwc', 'modal', 'modal.html')), 'modal.html installed');

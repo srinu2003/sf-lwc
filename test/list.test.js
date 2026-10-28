@@ -22,15 +22,15 @@ test('normalizeSpec normalizes GitHub URLs, git SSH, and shorthands', () => {
   assert.equal(normalizeSpec('./local/path'), './local/path');
 });
 
-test('listComponents reads local registry manifests', async () => {
-  const source = createSource(root);
-  const components = await listComponents(source, root);
+test('listComponents reads components from local SFDX project', async () => {
+  const fixtureRepo = path.join(root, 'fixtures', 'sfdx-repo');
+  const source = createSource(fixtureRepo);
+  const components = await listComponents(source, fixtureRepo);
   assert.deepEqual(
     components.map((component) => component.name),
-    ['data-table', 'modal', 'toast-utils']
+    ['dataTable', 'modal', 'toastUtils']
   );
   assert.equal(components[0].version, '1.0.0');
-  assert.deepEqual(components[0].dependencies, ['toast-utils']);
 });
 
 test('listComponents auto-discovers components from direct SFDX directory without manifest.json', async () => {
@@ -66,17 +66,17 @@ test('listComponents auto-discovers components from direct SFDX directory withou
 });
 
 test('cli list command prints component details', async () => {
-  const { stdout } = await execFileAsync('node', ['bin/sf-lwc.js', 'list', '--from', root], { cwd: root });
+  const fixtureRepo = path.join(root, 'fixtures', 'sfdx-repo');
+  const { stdout } = await execFileAsync('node', ['bin/sf-lwc.js', 'list', '--from', fixtureRepo], { cwd: root });
   assert.match(stdout, /Registry:\s+/);
-  assert.match(stdout, /- data-table@1\.0\.0/);
-  assert.match(stdout, /Config-driven record table backed by an Apex controller\./);
-  assert.match(stdout, /dependencies: toast-utils/);
+  assert.match(stdout, /- dataTable@1\.0\.0/);
   assert.match(stdout, /- modal@1\.0\.0/);
-  assert.match(stdout, /- toast-utils@1\.0\.0/);
+  assert.match(stdout, /- toastUtils@1\.0\.0/);
 });
 
 test('cli ls alias works', async () => {
-  const { stdout } = await execFileAsync('node', ['bin/sf-lwc.js', 'ls', '--from', root], { cwd: root });
-  assert.match(stdout, /- data-table@1\.0\.0/);
+  const fixtureRepo = path.join(root, 'fixtures', 'sfdx-repo');
+  const { stdout } = await execFileAsync('node', ['bin/sf-lwc.js', 'ls', '--from', fixtureRepo], { cwd: root });
+  assert.match(stdout, /- dataTable@1\.0\.0/);
   assert.match(stdout, /- modal@1\.0\.0/);
 });

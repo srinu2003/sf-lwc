@@ -11,6 +11,7 @@ import { matchComponentName } from '../src/resolve.js';
 
 const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const FIXTURE_REPO = path.join(root, 'fixtures', 'sfdx-repo');
 const BIN = path.join(root, 'bin', 'sf-lwc.js');
 
 function createTempProject(name = 'sf-lwc-add-test-') {
@@ -35,7 +36,7 @@ test('cli add without component in non-interactive environment fails fast with d
   const { tmpProject } = createTempProject('add-non-tty-');
 
   try {
-    await execFileAsync('node', [BIN, 'add', '--from', root, '--cwd', tmpProject]);
+    await execFileAsync('node', [BIN, 'add', '--from', FIXTURE_REPO, '--cwd', tmpProject]);
     assert.fail('Command should have thrown error');
   } catch (err) {
     assert.equal(err.code, 1);
@@ -53,7 +54,7 @@ test('cli add with --json flag and no component in non-interactive terminal fail
   const { tmpProject } = createTempProject('add-json-');
 
   try {
-    await execFileAsync('node', [BIN, 'add', '--from', root, '--cwd', tmpProject, '--json']);
+    await execFileAsync('node', [BIN, 'add', '--from', FIXTURE_REPO, '--cwd', tmpProject, '--json']);
     assert.fail('Command should have thrown error');
   } catch (err) {
     assert.equal(err.code, 1);
@@ -70,7 +71,7 @@ test('cli add with component name executes directly without prompting in non-int
   try {
     const { stdout } = await execFileAsync(
       'node',
-      [BIN, 'add', 'modal', '--from', root, '--cwd', tmpProject]
+      [BIN, 'add', 'modal', '--from', FIXTURE_REPO, '--cwd', tmpProject]
     );
 
     assert.match(stdout, /\+ modal@1\.0\.0/);
@@ -99,11 +100,11 @@ test('cli add multiple components directly without prompting', async () => {
   try {
     const { stdout } = await execFileAsync(
       'node',
-      [BIN, 'add', 'modal', 'toast-utils', '--from', root, '--cwd', tmpProject]
+      [BIN, 'add', 'modal', 'toast-utils', '--from', FIXTURE_REPO, '--cwd', tmpProject]
     );
 
     assert.match(stdout, /\+ modal@1\.0\.0/);
-    assert.match(stdout, /\+ toast-utils@1\.0\.0/);
+    assert.match(stdout, /\+ toast[Uu]tils@1\.0\.0/);
     assert.match(stdout, /Done\./);
 
     // Verify both component directories exist
@@ -120,11 +121,11 @@ test('cli add comma-separated component names without prompting', async () => {
   try {
     const { stdout } = await execFileAsync(
       'node',
-      [BIN, 'add', 'modal,toast-utils', '--from', root, '--cwd', tmpProject]
+      [BIN, 'add', 'modal,toast-utils', '--from', FIXTURE_REPO, '--cwd', tmpProject]
     );
 
     assert.match(stdout, /\+ modal@1\.0\.0/);
-    assert.match(stdout, /\+ toast-utils@1\.0\.0/);
+    assert.match(stdout, /\+ toast[Uu]tils@1\.0\.0/);
     assert.match(stdout, /Done\./);
 
     // Verify both component directories exist
@@ -141,11 +142,11 @@ test('cli add mixed comma-separated and space-separated component names with dup
   try {
     const { stdout } = await execFileAsync(
       'node',
-      [BIN, 'add', 'modal, toast-utils', 'modal', '--from', root, '--cwd', tmpProject, '--dry-run']
+      [BIN, 'add', 'modal, toast-utils', 'modal', '--from', FIXTURE_REPO, '--cwd', tmpProject, '--dry-run']
     );
 
     assert.match(stdout, /\+ modal@1\.0\.0/);
-    assert.match(stdout, /\+ toast-utils@1\.0\.0/);
+    assert.match(stdout, /\+ toast[Uu]tils@1\.0\.0/);
     assert.match(stdout, /Dry run complete/);
   } finally {
     fs.rmSync(tmpProject, { recursive: true, force: true });
@@ -156,7 +157,7 @@ test('cli add with commas-only in non-interactive environment fails fast', async
   const { tmpProject } = createTempProject('add-commas-only-');
 
   try {
-    await execFileAsync('node', [BIN, 'add', ', , ,', '--from', root, '--cwd', tmpProject]);
+    await execFileAsync('node', [BIN, 'add', ', , ,', '--from', FIXTURE_REPO, '--cwd', tmpProject]);
     assert.fail('Command should have thrown error');
   } catch (err) {
     assert.equal(err.code, 1);
@@ -173,7 +174,7 @@ test('cli add supports positional source and component without --from', async ()
   try {
     const { stdout } = await execFileAsync(
       'node',
-      [BIN, 'add', root, 'modal', '--cwd', tmpProject]
+      [BIN, 'add', FIXTURE_REPO, 'modal', '--cwd', tmpProject]
     );
 
     assert.match(stdout, /\+ modal@1\.0\.0/);

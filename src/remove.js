@@ -1,6 +1,7 @@
 import { access, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pruneLabels } from './labels.js';
+import { matchComponentName } from './resolve.js';
 import { LOCK_FILE, readLock } from './install.js';
 
 const exists = (p) => access(p).then(() => true, () => false);
@@ -32,7 +33,7 @@ function findBlockingDependents(lock, namesToRemove) {
 export async function remove({ names, project, dryRun = false, force = false, log = console.log }) {
   const lock = await readLock(project.root);
   const installed = lock.components ?? {};
-  const uniqueNames = [...new Set(names)];
+  const uniqueNames = [...new Set(names)].map((n) => matchComponentName(Object.keys(installed), n));
   for (const name of uniqueNames) {
     if (!installed[name]) throw new Error(`Component "${name}" is not installed.`);
   }

@@ -14,6 +14,7 @@ import { findProject } from '../src/project.js';
 
 const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const FIXTURE_REPO = path.join(root, 'fixtures', 'sfdx-repo');
 
 async function exists(file) {
   try {
@@ -35,7 +36,7 @@ async function setupProject() {
 }
 
 async function installComponents(projectRoot, names) {
-  const source = createSource(root);
+  const source = createSource(FIXTURE_REPO);
   const manifests = await resolve(source, names);
   const project = await findProject(projectRoot);
   await install({ source, manifests, project });
@@ -53,8 +54,8 @@ test('remove deletes tracked files, prunes labels, and updates lockfile', async 
   assert.equal(await exists(path.join(project.root, LOCK_FILE)), true);
 
   const lock = JSON.parse(await readFile(path.join(project.root, LOCK_FILE), 'utf8'));
-  assert.equal(Boolean(lock.components['data-table']), false);
-  assert.equal(Boolean(lock.components['toast-utils']), true);
+  assert.equal(Boolean(lock.components['data-table'] || lock.components.dataTable), false);
+  assert.equal(Boolean(lock.components['toast-utils'] || lock.components.toastUtils), true);
 
   const labels = await readFile(path.join(project.targetRoot, 'labels', 'CustomLabels.labels-meta.xml'), 'utf8');
   assert.equal(labels.includes('DataTable_NoRecords'), false);
@@ -67,13 +68,13 @@ test('remove blocks deleting dependencies unless force is set', async () => {
 
   await assert.rejects(
     remove({ names: ['toast-utils'], project }),
-    /Cannot remove "toast-utils" because installed components depend on it: data-table\. Use --force to continue\./
+    /Cannot remove "(toast-utils|toastUtils)" because installed components depend on it: (data-table|dataTable)\. Use --force to continue\./
   );
 
   await remove({ names: ['toast-utils'], project, force: true });
   const lock = JSON.parse(await readFile(path.join(project.root, LOCK_FILE), 'utf8'));
-  assert.equal(Boolean(lock.components['toast-utils']), false);
-  assert.equal(Boolean(lock.components['data-table']), true);
+  assert.equal(Boolean(lock.components['toast-utils'] || lock.components.toastUtils), false);
+  assert.equal(Boolean(lock.components['data-table'] || lock.components.dataTable), true);
 });
 
 test('remove dry-run does not modify files or lockfile', async () => {

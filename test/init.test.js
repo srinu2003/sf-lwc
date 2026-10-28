@@ -11,6 +11,7 @@ import { findProject } from '../src/project.js';
 
 const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const FIXTURE_REPO = path.join(root, 'fixtures', 'sfdx-repo');
 
 async function exists(file) {
   try {
@@ -75,13 +76,13 @@ test('cli init creates config file with default or custom registry', async () =>
 
   const { stdout } = await execFileAsync(
     'node',
-    ['bin/sf-lwc.js', 'init', '--from', root, '--cwd', projectRoot],
+    ['bin/sf-lwc.js', 'init', '--from', FIXTURE_REPO, '--cwd', projectRoot],
     { cwd: root }
   );
 
   assert.match(stdout, /Done\./);
   const config = JSON.parse(await readFile(path.join(projectRoot, CONFIG_FILE), 'utf8'));
-  assert.equal(config.registry, root);
+  assert.equal(config.registry, FIXTURE_REPO);
 });
 
 test('cli list and add commands pick up registry from sf-lwc.json without --from', async () => {
@@ -90,7 +91,7 @@ test('cli list and add commands pick up registry from sf-lwc.json without --from
   // Initialize with local root registry
   await execFileAsync(
     'node',
-    ['bin/sf-lwc.js', 'init', '--from', root, '--cwd', projectRoot],
+    ['bin/sf-lwc.js', 'init', '--from', FIXTURE_REPO, '--cwd', projectRoot],
     { cwd: root }
   );
 
@@ -100,8 +101,8 @@ test('cli list and add commands pick up registry from sf-lwc.json without --from
     ['bin/sf-lwc.js', 'list', '--cwd', projectRoot],
     { cwd: root, env: { ...process.env, SF_LWC_REGISTRY: '' } }
   );
-  assert.match(listOut, /- data-table@1\.0\.0/);
-  assert.match(listOut, /- toast-utils@1\.0\.0/);
+  assert.match(listOut, /- dataTable@1\.0\.0/);
+  assert.match(listOut, /- toastUtils@1\.0\.0/);
 
   // Add component without --from or env var
   const { stdout: addOut } = await execFileAsync(

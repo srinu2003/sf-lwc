@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const FIXTURE_REPO = path.join(root, 'fixtures', 'sfdx-repo');
 const pluginDir = path.join(root, 'packages', 'plugin-lwc');
 
 function createTempProject(prefix = 'sf-lwc-plugin-test-') {
@@ -180,7 +181,7 @@ test('LwcAdd programmatic execution with component installs cleanly in dry-run m
 
   try {
     process.chdir(tmpProject);
-    const result = await LwcAdd.run(['modal', '--from', root, '--dry-run']);
+    const result = await LwcAdd.run(['modal', '--from', FIXTURE_REPO, '--dry-run']);
 
     assert.equal(result.dryRun, true);
     assert.equal(Array.isArray(result.installed), true);
@@ -204,18 +205,18 @@ test('LwcAdd programmatic execution supports multiple space-separated and comma-
     process.chdir(tmpProject);
 
     // 1. Space-separated multiple arguments
-    const resultSpace = await LwcAdd.run(['modal', 'toast-utils', '--from', root, '--dry-run']);
+    const resultSpace = await LwcAdd.run(['modal', 'toast-utils', '--from', FIXTURE_REPO, '--dry-run']);
     assert.equal(resultSpace.dryRun, true);
     assert.equal(resultSpace.installed.length, 2);
     const spaceNames = resultSpace.installed.map((c) => c.name).sort();
-    assert.deepEqual(spaceNames, ['modal', 'toast-utils']);
+    assert.deepEqual(spaceNames.map(n => n.toLowerCase().replace(/[-_]/g, '')), ['modal', 'toastutils']);
 
     // 2. Comma-separated component string
-    const resultComma = await LwcAdd.run(['modal,toast-utils', '--from', root, '--dry-run']);
+    const resultComma = await LwcAdd.run(['modal,toast-utils', '--from', FIXTURE_REPO, '--dry-run']);
     assert.equal(resultComma.dryRun, true);
     assert.equal(resultComma.installed.length, 2);
     const commaNames = resultComma.installed.map((c) => c.name).sort();
-    assert.deepEqual(commaNames, ['modal', 'toast-utils']);
+    assert.deepEqual(commaNames.map(n => n.toLowerCase().replace(/[-_]/g, '')), ['modal', 'toastutils']);
   } finally {
     process.chdir(prevCwd);
     fs.rmSync(tmpProject, { recursive: true, force: true });
@@ -230,7 +231,7 @@ test('sf lwc add modal --dry-run --json via CLI produces clean JSON without stdo
   try {
     const res = await execFileAsync(
       sfCmd,
-      ['lwc', 'add', 'modal', '--from', root, '--dry-run', '--json'],
+      ['lwc', 'add', 'modal', '--from', FIXTURE_REPO, '--dry-run', '--json'],
       {
         cwd: tmpProject,
         windowsHide: true,

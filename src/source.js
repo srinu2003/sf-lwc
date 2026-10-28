@@ -47,8 +47,7 @@ export function isSourceSpec(spec) {
 }
 
 // A "source" is a registry: a local folder or a GitHub repo (owner/repo[@ref]).
-// Layout: components/<name>/manifest.json and components/<name>/files/<path>
-// Also supports direct Salesforce DX repos (e.g. force-app/main/default/lwc/<name>).
+// Salesforce DX repo source (e.g. force-app/main/default/lwc/<name>).
 export function createSource(rawSpec) {
   const spec = normalizeSpec(rawSpec);
   if (/^(\.|\/|~)/.test(spec) || /^[a-zA-Z]:[\\/]/.test(spec)) {
@@ -63,13 +62,14 @@ export function createSource(rawSpec) {
       read,
       readFile: read,
       async readComponentFile(manifest, rel) {
-        if (manifest._rawPrefix) {
-          const subPath = rel.startsWith(`lwc/${manifest.name}/`)
-            ? rel.slice(`lwc/${manifest.name}/`.length)
-            : path.basename(rel);
-          return readFile(path.join(root, manifest._rawPrefix, subPath));
+        if (rel.startsWith('classes/') || rel.startsWith('labels/')) {
+          return readFile(path.join(root, 'force-app', 'main', 'default', rel));
         }
-        return read(`components/${manifest.name}/files/${rel}`);
+        const rawPrefix = manifest._rawPrefix || `force-app/main/default/lwc/${manifest.name}`;
+        const subPath = rel.startsWith(`lwc/${manifest.name}/`)
+          ? rel.slice(`lwc/${manifest.name}/`.length)
+          : path.basename(rel);
+        return readFile(path.join(root, rawPrefix, subPath));
       },
       async listLwcBundles(specOverride) {
         const displayPath = specOverride || rawSpec || root;
@@ -83,7 +83,7 @@ export function createSource(rawSpec) {
           throw new Error(`Local directory '${displayPath}' does not exist.`);
         }
 
-        // 1. Standard SFDX layout: force-app/main/default/lwc
+        // Standard SFDX layout: force-app/main/default/lwc
         const sfdxDir = path.join(root, 'force-app', 'main', 'default', 'lwc');
         try {
           const entries = await readdir(sfdxDir, { withFileTypes: true });
@@ -101,28 +101,6 @@ export function createSource(rawSpec) {
           if (bundles.length > 0) {
             return {
               layout: 'sfdx',
-              bundles: bundles.sort((a, b) => a.name.localeCompare(b.name))
-            };
-          }
-        } catch {}
-
-        // 2. Curated registry layout: components/
-        const regDir = path.join(root, 'components');
-        try {
-          const entries = await readdir(regDir, { withFileTypes: true });
-          const bundles = [];
-          for (const entry of entries) {
-            if (entry.isDirectory() && NAME_RE.test(entry.name)) {
-              bundles.push({
-                name: entry.name,
-                layout: 'registry',
-                manifestPath: path.join(regDir, entry.name, 'manifest.json')
-              });
-            }
-          }
-          if (bundles.length > 0) {
-            return {
-              layout: 'registry',
               bundles: bundles.sort((a, b) => a.name.localeCompare(b.name))
             };
           }
@@ -183,13 +161,14 @@ export function createSource(rawSpec) {
       return res.json();
     },
     async readComponentFile(manifest, rel) {
-      if (manifest._rawPrefix) {
-        const subPath = rel.startsWith(`lwc/${manifest.name}/`)
-          ? rel.slice(`lwc/${manifest.name}/`.length)
-          : path.basename(rel);
-        return this.read(`${manifest._rawPrefix}/${subPath}`);
+      if (rel.startsWith('classes/') || rel.startsWith('labels/')) {
+        return this.read(`force-app/main/default/${rel}`);
       }
-      return this.read(`components/${manifest.name}/files/${rel}`);
+      const rawPrefix = manifest._rawPrefix || `force-app/main/default/lwc/${manifest.name}`;
+      const subPath = rel.startsWith(`lwc/${manifest.name}/`)
+        ? rel.slice(`lwc/${manifest.name}/`.length)
+        : path.basename(rel);
+      return this.read(`${rawPrefix}/${subPath}`);
     },
     async getTree(specOverride) {
       if (this._treePromise) return this._treePromise;
@@ -252,28 +231,6 @@ export function createSource(rawSpec) {
         return {
           layout: 'sfdx',
           bundles: Array.from(sfdxMap.values()).sort((a, b) => a.name.localeCompare(b.name))
-        };
-      }
-
-      // 2. Curated registry layout: components/<name>/manifest.json
-      const regMap = new Map();
-      for (const item of tree) {
-        const match = item.path.match(/^components\/([^/]+)\/manifest\.json$/);
-        if (!match) continue;
-        const compName = match[1];
-        if (NAME_RE.test(compName)) {
-          regMap.set(compName, {
-            name: compName,
-            layout: 'registry',
-            manifestPath: item.path
-          });
-        }
-      }
-
-      if (regMap.size > 0) {
-        return {
-          layout: 'registry',
-          bundles: Array.from(regMap.values()).sort((a, b) => a.name.localeCompare(b.name))
         };
       }
 

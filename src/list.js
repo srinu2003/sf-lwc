@@ -66,7 +66,7 @@ export async function listComponents(source, spec) {
 
   const { layout, bundles } = bundleResult;
 
-  if (layout === 'sfdx') {
+  if (layout === 'sfdx' || Array.isArray(bundles)) {
     const components = await Promise.all(
       bundles.map(async (bundle) => {
         let description = '';
@@ -88,27 +88,6 @@ export async function listComponents(source, spec) {
           version: '1.0.0',
           apiVersion,
           dependencies: []
-        };
-      })
-    );
-    return components.sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  if (layout === 'registry') {
-    const components = await Promise.all(
-      bundles.map(async (bundle) => {
-        const relPath = path.isAbsolute(bundle.manifestPath) && source?.root
-          ? path.relative(source.root, bundle.manifestPath).replace(/\\/g, '/')
-          : bundle.manifestPath;
-        const buf = await source.read(relPath);
-        const manifest = JSON.parse(buf.toString('utf8'));
-        validate(manifest, bundle.name);
-        return {
-          name: manifest.name,
-          description: manifest.description ?? '',
-          version: manifest.version,
-          apiVersion: manifest.apiVersion ?? '62.0',
-          dependencies: manifest.dependencies ?? []
         };
       })
     );
