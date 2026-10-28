@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
-import { createSource } from '../src/source.js';
+import { createSource, isSourceSpec } from '../src/source.js';
 import { resolve } from '../src/resolve.js';
 import { findProject } from '../src/project.js';
 import { install } from '../src/install.js';
@@ -18,7 +18,7 @@ const HELP = `sf-lwc — add open-source LWC components to a Salesforce DX proje
 Usage:
   sf-lwc init [options]
   sf-lwc doctor [options]
-  sf-lwc add [component...] [options]
+  sf-lwc add [source] [component...] [options]
   sf-lwc update [component...] [options]
   sf-lwc remove <component...> [options]
   sf-lwc rm <component...> [options]
@@ -59,15 +59,7 @@ async function main() {
       help: { type: 'boolean', short: 'h', default: false }
     }
   });
-  const [cmd, ...rawNames] = positionals;
-  const names = Array.from(
-    new Set(
-      rawNames
-        .flatMap((token) => token.split(','))
-        .map((name) => name.trim())
-        .filter(Boolean)
-    )
-  );
+  const [cmd, ...names] = positionals;
   if (values.help || !cmd) return console.log(HELP);
   if (!['init', 'add', 'remove', 'rm', 'diff', 'update', 'doctor', 'list', 'ls', 'pack', 'export'].includes(cmd)) {
     throw new Error(`Unknown command "${cmd}". Try --help.`);
@@ -230,21 +222,42 @@ async function main() {
 
   const config = project ? await readConfig(project.root) : null;
   const envRegistry = process.env.SF_LWC_REGISTRY?.trim() || undefined;
-  const spec = values.from ?? values.registry ?? envRegistry ?? config?.registry;
+
+  let detectedSource = values.from ?? values.registry ?? envRegistry ?? config?.registry;
+  const remainingComponentTokens = [];
+
+  for (let i = 0; i < names.length; i++) {
+    const token = names[i];
+    if (i === 0 && !values.from && !values.registry && isSourceSpec(token)) {
+      detectedSource = token;
+    } else {
+      remainingComponentTokens.push(token);
+    }
+  }
+
+  const spec = detectedSource;
   if (!spec) {
-    throw new Error('No registry. Run "sf-lwc init", pass --from owner/repo, or set SF_LWC_REGISTRY.');
+    throw new Error('No source repository specified. Pass a repository or project path, e.g.: sf-lwc add <owner/repo> [component] or pass --from <owner/repo>');
   }
 
   const source = createSource(spec);
   if (cmd === 'add') {
-    let targetNames = names;
+    let targetNames = Array.from(
+      new Set(
+        remainingComponentTokens
+          .flatMap((token) => token.split(','))
+          .map((name) => name.trim())
+          .filter(Boolean)
+      )
+    );
+
     if (!targetNames.length) {
       if (!process.stdin.isTTY || !process.stdout.isTTY || process.env.CI || values.json) {
         throw new Error('No component specified and terminal is non-interactive. Specify at least one component, e.g. sf-lwc add <component>');
       }
-      const components = await listComponents(source, values.from || spec);
+      const components = await listComponents(source, spec);
       if (!components.length) {
-        throw new Error(`No components found in registry "${source.label}".`);
+        throw new Error(`No components found in repository "${source.label}".`);
       }
       targetNames = await selectComponents(components);
       if (!targetNames.length) {

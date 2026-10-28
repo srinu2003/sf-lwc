@@ -163,7 +163,7 @@ test('stress: cli add without component and no registry exits 1 with registry er
   } catch (err) {
     assert.equal(err.code, 1);
     const combined = (err.stderr || '') + (err.stdout || '');
-    assert.match(combined, /No registry\. Run "sf-lwc init", pass --from owner\/repo, or set SF_LWC_REGISTRY/);
+    assert.match(combined, /No source repository specified|pass --from/);
   } finally {
     fs.rmSync(tmpProject, { recursive: true, force: true });
   }

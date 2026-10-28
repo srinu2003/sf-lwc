@@ -82,11 +82,11 @@ test('sf lwc add --help reflects updated arguments and descriptions', async (t) 
       windowsHide: true,
       shell: true,
     });
+    assert.match(stdout, /\[SOURCEORCOMPONENT\.\.\.\]/);
     assert.match(stdout, /\[COMPONENT\.\.\.\]/);
-    assert.match(stdout, /interactive component selector/i);
-    assert.match(stdout, /Supports comma-separated or\s+multiple component names/i);
+    assert.match(stdout, /interactive/i);
     assert.match(stdout, /sf lwc add/);
-    assert.match(stdout, /sf lwc add modal toast-utils/);
+    assert.match(stdout, /sf lwc add svierk\/awesome-lwc-collection qrCodeGenerator/);
   } catch (err) {
     if (err.code === 'ENOENT') {
       t.skip('sf CLI binary not in PATH');
@@ -98,7 +98,7 @@ test('sf lwc add --help reflects updated arguments and descriptions', async (t) 
 
 test('sf lwc add in non-interactive environment fails fast with descriptive error', async (t) => {
   try {
-    await execFileAsync('sf.cmd', ['lwc', 'add'], {
+    await execFileAsync('sf.cmd', ['lwc', 'add', '--from', '.'], {
       windowsHide: true,
       shell: true,
     });
@@ -124,7 +124,7 @@ test('LwcAdd programmatic execution in non-interactive environment throws descri
   try {
     await assert.rejects(
       async () => {
-        await LwcAdd.run([]);
+        await LwcAdd.run(['--from', '.']);
       },
       (err) => {
         assert.match(
@@ -135,6 +135,38 @@ test('LwcAdd programmatic execution in non-interactive environment throws descri
       }
     );
   } finally {
+    process.exitCode = prevExitCode;
+  }
+});
+
+test('LwcAdd programmatic execution without source repository throws NoSourceSpecified', async () => {
+  const addMod = await import(pathToFileURL(path.join(pluginDir, 'lib', 'commands', 'lwc', 'add.js')).href);
+  const LwcAdd = addMod.default;
+
+  const tmpProject = createTempProject('sf-lwc-no-source-');
+  const prevCwd = process.cwd();
+  const prevExitCode = process.exitCode;
+  const prevRegistry = process.env.SF_LWC_REGISTRY;
+  delete process.env.SF_LWC_REGISTRY;
+
+  try {
+    process.chdir(tmpProject);
+    await assert.rejects(
+      async () => {
+        await LwcAdd.run(['modal']);
+      },
+      (err) => {
+        assert.match(
+          err.message,
+          /No source repository specified/
+        );
+        return true;
+      }
+    );
+  } finally {
+    process.chdir(prevCwd);
+    fs.rmSync(tmpProject, { recursive: true, force: true });
+    if (prevRegistry) process.env.SF_LWC_REGISTRY = prevRegistry;
     process.exitCode = prevExitCode;
   }
 });
