@@ -127,3 +127,91 @@ test('local unpackaged component automatically discovers Apex classes and Custom
     fs.rmSync(tmpSource, { recursive: true, force: true });
   }
 });
+
+test('commented-out imports and string literals do not trigger false dependencies', async () => {
+  const tmpSource = fs.mkdtempSync(path.join(os.tmpdir(), 'sfdx-comments-test-'));
+  try {
+    fs.writeFileSync(
+      path.join(tmpSource, 'sfdx-project.json'),
+      JSON.stringify({ packageDirectories: [{ path: 'force-app', default: true }] })
+    );
+
+    const lwcDir = path.join(tmpSource, 'force-app', 'main', 'default', 'lwc', 'cleanComp');
+    fs.mkdirSync(lwcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(lwcDir, 'cleanComp.html'),
+      `<template>
+         <!-- <c-commented-child></c-commented-child> -->
+         <div>Clean</div>
+       </template>`
+    );
+    fs.writeFileSync(
+      path.join(lwcDir, 'cleanComp.js'),
+      `import { LightningElement } from 'lwc';
+       // import oldService from '@salesforce/apex/FakeOldClass.unusedMethod';
+       /* import oldChild from 'c/fakeOldChild'; */
+       import realService from '@salesforce/apex/RealClass.realMethod';
+       export default class CleanComp extends LightningElement {}`
+    );
+    fs.writeFileSync(
+      path.join(lwcDir, 'cleanComp.js-meta.xml'),
+      `<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+         <apiVersion>62.0</apiVersion>
+       </LightningComponentBundle>`
+    );
+
+    const classesDir = path.join(tmpSource, 'force-app', 'main', 'default', 'classes');
+    fs.mkdirSync(classesDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(classesDir, 'RealClass.cls'),
+      `public with sharing class RealClass {
+         @AuraEnabled public static void realMethod() {
+           // FakeUnusedClass.doSomething();
+           String logMsg = 'Referencing FakeUnusedClass in a string literal';
+           // System.Label.FakeLabel
+           String val = System.Label.RealLabel;
+         }
+       }`
+    );
+    fs.writeFileSync(
+      path.join(classesDir, 'RealClass.cls-meta.xml'),
+      `<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata"><apiVersion>62.0</apiVersion></ApexClass>`
+    );
+
+    // Create FakeUnusedClass on disk to prove it's NOT picked up just because it exists
+    fs.writeFileSync(
+      path.join(classesDir, 'FakeUnusedClass.cls'),
+      `public class FakeUnusedClass {}`
+    );
+    fs.writeFileSync(
+      path.join(classesDir, 'FakeUnusedClass.cls-meta.xml'),
+      `<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata"><apiVersion>62.0</apiVersion></ApexClass>`
+    );
+
+    const labelsDir = path.join(tmpSource, 'force-app', 'main', 'default', 'labels');
+    fs.mkdirSync(labelsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(labelsDir, 'CustomLabels.labels-meta.xml'),
+      `<?xml version="1.0" encoding="UTF-8"?>
+       <CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata">
+         <labels><fullName>FakeLabel</fullName><value>Fake</value></labels>
+         <labels><fullName>RealLabel</fullName><value>Real</value></labels>
+       </CustomLabels>`
+    );
+
+    const source = createSource(tmpSource);
+    const manifest = await loadManifest(source, 'cleanComp');
+
+    // Dependencies must NOT include commented items
+    assert.deepEqual(manifest.dependencies, []);
+    assert.ok(manifest.files.includes('classes/RealClass.cls'));
+    assert.ok(!manifest.files.includes('classes/FakeUnusedClass.cls'));
+    assert.ok(!manifest.files.includes('classes/FakeOldClass.cls'));
+
+    // Labels must only include RealLabel
+    const labelNames = manifest.labels.map((l) => l.fullName);
+    assert.deepEqual(labelNames, ['RealLabel']);
+  } finally {
+    fs.rmSync(tmpSource, { recursive: true, force: true });
+  }
+});
