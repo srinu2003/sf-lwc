@@ -144,9 +144,9 @@ export async function diff(name, options = {}) {
       if (typeof source.readComponentFile === 'function') {
         registryContent = await source.readComponentFile(manifest, file);
       } else if (typeof source.readFile === 'function') {
-        registryContent = await source.readFile(`components/${name}/files/${file}`);
+        registryContent = await source.readFile(file);
       } else {
-        registryContent = await source.read(`components/${name}/files/${file}`);
+        registryContent = await source.read(file);
       }
     } catch {
       // Fallback for mocks

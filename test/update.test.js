@@ -11,6 +11,7 @@ import { LOCK_FILE } from '../src/install.js';
 
 const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const FIXTURE_REPO = path.join(root, 'fixtures', 'sfdx-repo');
 const BIN = path.join(root, 'bin', 'sf-lwc.js');
 
 test('compareSemver accurately compares versions', () => {
@@ -40,15 +41,15 @@ test('update skips already up-to-date components unless force is set', async () 
     );
 
     // Install modal
-    await execFileAsync('node', [BIN, 'add', 'modal', '--from', root, '--cwd', projectRoot]);
+    await execFileAsync('node', [BIN, 'add', 'modal', '--from', FIXTURE_REPO, '--cwd', projectRoot]);
 
     // Run update without force -> upToDate
-    const res = await update({ from: root, cwd: projectRoot });
+    const res = await update({ from: FIXTURE_REPO, cwd: projectRoot });
     assert.deepEqual(res.updated, []);
     assert.deepEqual(res.upToDate, ['modal']);
 
     // Run update with force -> updated
-    const resForce = await update({ from: root, cwd: projectRoot, force: true });
+    const resForce = await update({ from: FIXTURE_REPO, cwd: projectRoot, force: true });
     assert.equal(resForce.updated.length, 1);
     assert.equal(resForce.updated[0].name, 'modal');
   } finally {
@@ -94,7 +95,7 @@ test('update upgrades outdated component in lockfile and writes new files', asyn
     await writeFile(path.join(pkgDefault, 'lwc', 'toastUtils', 'toastUtils.js'), '// old version\n');
 
     // 1. Dry run
-    const dryRes = await update({ names: ['toast-utils'], from: root, cwd: projectRoot, dryRun: true });
+    const dryRes = await update({ names: ['toast-utils'], from: FIXTURE_REPO, cwd: projectRoot, dryRun: true });
     assert.equal(dryRes.updated.length, 1);
     assert.equal(dryRes.updated[0].from, '0.9.0');
     assert.equal(dryRes.updated[0].to, '1.0.0');
@@ -109,7 +110,7 @@ test('update upgrades outdated component in lockfile and writes new files', asyn
       'update',
       'toast-utils',
       '--from',
-      root,
+      FIXTURE_REPO,
       '--cwd',
       projectRoot
     ]);

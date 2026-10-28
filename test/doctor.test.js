@@ -11,6 +11,7 @@ import { LOCK_FILE } from '../src/install.js';
 
 const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const FIXTURE_REPO = path.join(root, 'fixtures', 'sfdx-repo');
 const BIN = path.join(root, 'bin', 'sf-lwc.js');
 
 test('doctor fails gracefully on non-DX directories', async () => {
@@ -43,7 +44,7 @@ test('doctor passes on clean DX project with valid lockfile and custom labels', 
     );
 
     // Install modal
-    await execFileAsync('node', [BIN, 'add', 'modal', '--from', root, '--cwd', projectRoot]);
+    await execFileAsync('node', [BIN, 'add', 'modal', '--from', FIXTURE_REPO, '--cwd', projectRoot]);
 
     const res = await doctor({ cwd: projectRoot });
     assert.equal(res.ok, true);

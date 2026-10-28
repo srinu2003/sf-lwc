@@ -77,7 +77,7 @@ export async function update(options = {}) {
         latestVersion: upstream.version,
         needsUpdate: true
       });
-      toInstallManifests.push(upstream);
+      toInstallManifests.push({ ...upstream, name });
       updated.push({
         name,
         from: installed.version,

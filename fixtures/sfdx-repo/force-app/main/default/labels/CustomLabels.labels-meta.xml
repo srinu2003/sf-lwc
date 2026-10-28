@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata">
+    <labels>
+        <fullName>Modal_CloseTitle</fullName>
+        <language>en_US</language>
+        <protected>false</protected>
+        <shortDescription>Modal Close Title</shortDescription>
+        <value>Close</value>
+    </labels>
+    <labels>
+        <fullName>Modal_DefaultCancel</fullName>
+        <language>en_US</language>
+        <protected>false</protected>
+        <shortDescription>Modal Default Cancel</shortDescription>
+        <value>Cancel</value>
+    </labels>
+    <labels>
+        <fullName>DataTable_NoRecords</fullName>
+        <language>en_US</language>
+        <protected>false</protected>
+        <shortDescription>data-table empty state</shortDescription>
+        <value>No records to display</value>
+    </labels>
+    <labels>
+        <fullName>DataTable_InvalidObject</fullName>
+        <language>en_US</language>
+        <protected>false</protected>
+        <shortDescription>data-table config error</shortDescription>
+        <value>Invalid object or fields</value>
+    </labels>
+</CustomLabels>

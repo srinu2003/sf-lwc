@@ -32,7 +32,7 @@ export async function install({ source, manifests, project, overwrite = false, d
       if ((await exists(dest)) && !overwrite) { log(`    skip (exists)  ${rel}`); continue; }
       const data = typeof source.readComponentFile === 'function'
         ? await source.readComponentFile(m, rel)
-        : await source.read(`components/${m.name}/files/${rel}`);
+        : await source.read(rel);
       log(`    ${verb}  ${rel}`);
       if (!dryRun) {
         await mkdir(path.dirname(dest), { recursive: true });

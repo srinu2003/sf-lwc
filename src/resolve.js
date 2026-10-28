@@ -1,4 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
+import fs from 'node:fs';
 import path from 'node:path';
 
 export const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
@@ -53,17 +54,7 @@ export function validate(m, expectedName) {
 export async function loadManifest(source, name) {
   if (!NAME_RE.test(name)) throw new Error(`Invalid component name "${name}"`);
 
-  // 1. Try standard registry manifest: components/<name>/manifest.json
-  try {
-    const buf = await source.read(`components/${name}/manifest.json`);
-    const m = JSON.parse(buf.toString('utf8'));
-    validate(m, name);
-    return m;
-  } catch (e) {
-    // Fall back to direct DX repository auto-discovery below
-  }
-
-  // 2. Direct DX Fallback: Inspect local SFDX repository
+  // 1. Inspect local SFDX repository
   if (source.type === 'local' && source.root) {
     const candidatePrefixes = [
       'force-app/main/default/lwc',
@@ -81,25 +72,100 @@ export async function loadManifest(source, name) {
 
         let apiVersion = '62.0';
         let description = `Component from ${source.label}`;
+        const dependencies = new Set();
+        const labelNames = new Set();
+        const apexClasses = new Set();
 
-        try {
-          const metaXml = await readFile(path.join(compDir, `${name}.js-meta.xml`), 'utf8');
-          const descMatch = metaXml.match(/<description>([\s\S]*?)<\/description>/i);
-          if (descMatch) description = descMatch[1].trim();
-          const apiMatch = metaXml.match(/<apiVersion>([\s\S]*?)<\/apiVersion>/i);
-          if (apiMatch) {
-            const parsedApi = apiMatch[1].trim();
-            apiVersion = parsedApi.includes('.') ? parsedApi : `${parsedApi}.0`;
+        for (const entry of entries) {
+          if (!entry.isFile()) continue;
+          if (entry.name === `${name}.js-meta.xml`) {
+            try {
+              const metaXml = await readFile(path.join(compDir, entry.name), 'utf8');
+              const descMatch = metaXml.match(/<description>([\s\S]*?)<\/description>/i);
+              if (descMatch) description = descMatch[1].trim();
+              const labelMatch = metaXml.match(/<masterLabel>([\s\S]*?)<\/masterLabel>/i);
+              if (!descMatch && labelMatch) description = labelMatch[1].trim();
+              const apiMatch = metaXml.match(/<apiVersion>([\s\S]*?)<\/apiVersion>/i);
+              if (apiMatch) {
+                const parsedApi = apiMatch[1].trim();
+                apiVersion = parsedApi.includes('.') ? parsedApi : `${parsedApi}.0`;
+              }
+            } catch {}
+          } else if (entry.name.endsWith('.js') || entry.name.endsWith('.html')) {
+            try {
+              const code = await readFile(path.join(compDir, entry.name), 'utf8');
+              const impMatches = [...code.matchAll(/from\s+['"]c\/([a-zA-Z0-9_-]+)['"]/g)];
+              for (const im of impMatches) {
+                if (im[1] !== name) dependencies.add(im[1]);
+              }
+              const tagMatches = [...code.matchAll(/<c-([a-z0-9-]+)/gi)];
+              for (const tm of tagMatches) {
+                dependencies.add(tm[1]);
+              }
+              const lblMatches = [...code.matchAll(/(?:@salesforce\/label\/c\.|\$Label\.c\.)([a-zA-Z0-9_]+)/g)];
+              for (const lm of lblMatches) {
+                labelNames.add(lm[1]);
+              }
+              const apexMatches = [...code.matchAll(/from\s+['"]@salesforce\/apex\/([a-zA-Z0-9_]+)\.[a-zA-Z0-9_]+['"]/g)];
+              for (const am of apexMatches) {
+                apexClasses.add(am[1]);
+              }
+            } catch {}
           }
-        } catch {}
+        }
+
+        // Add Apex class files if present
+        for (const cls of apexClasses) {
+          const clsRel = `classes/${cls}.cls`;
+          const metaRel = `classes/${cls}.cls-meta.xml`;
+          if (fs.existsSync(path.join(source.root, 'force-app/main/default', clsRel))) {
+            files.push(clsRel);
+            if (fs.existsSync(path.join(source.root, 'force-app/main/default', metaRel))) {
+              files.push(metaRel);
+            }
+          }
+          const testClsRel = `classes/${cls}Test.cls`;
+          const testMetaRel = `classes/${cls}Test.cls-meta.xml`;
+          if (fs.existsSync(path.join(source.root, 'force-app/main/default', testClsRel))) {
+            files.push(testClsRel);
+            if (fs.existsSync(path.join(source.root, 'force-app/main/default', testMetaRel))) {
+              files.push(testMetaRel);
+            }
+          }
+        }
+
+        // Parse CustomLabels if present
+        const labels = [];
+        const labelPaths = [
+          path.join(source.root, 'force-app/main/default/labels/CustomLabels.labels-meta.xml'),
+          path.join(source.root, 'main/default/labels/CustomLabels.labels-meta.xml')
+        ];
+        for (const lp of labelPaths) {
+          try {
+            const xml = await readFile(lp, 'utf8');
+            const labelBlocks = [...xml.matchAll(/<labels>([\s\S]*?)<\/labels>/g)];
+            for (const lb of labelBlocks) {
+              const nm = lb[1].match(/<fullName>(.*?)<\/fullName>/);
+              const val = lb[1].match(/<value>(.*?)<\/value>/);
+              if (nm && val) {
+                const fullName = nm[1].trim();
+                if (labelNames.has(fullName) || fullName.toLowerCase().startsWith(name.toLowerCase() + '_')) {
+                  labels.push({ fullName, value: val[1].trim() });
+                }
+              }
+            }
+            if (labels.length) break;
+          } catch {}
+        }
 
         const synthesized = {
           name,
           version: '1.0.0',
           description,
           apiVersion,
-          files,
-          dependencies: [],
+          files: [...new Set(files)],
+          dependencies: Array.from(dependencies),
+          labels,
           _rawPrefix: `${prefix}/${name}`
         };
 
@@ -109,7 +175,7 @@ export async function loadManifest(source, name) {
     }
   }
 
-  // 3. Direct DX Fallback: Inspect remote SFDX repository tree
+  // 2. Inspect remote SFDX repository tree
   if (source.fetchApi) {
     const candidatePrefixes = [
       'force-app/main/default/lwc',
@@ -137,6 +203,8 @@ export async function loadManifest(source, name) {
             const metaXml = metaBuf.toString('utf8');
             const descMatch = metaXml.match(/<description>([\s\S]*?)<\/description>/i);
             if (descMatch) description = descMatch[1].trim();
+            const labelMatch = metaXml.match(/<masterLabel>([\s\S]*?)<\/masterLabel>/i);
+            if (!descMatch && labelMatch) description = labelMatch[1].trim();
             const apiMatch = metaXml.match(/<apiVersion>([\s\S]*?)<\/apiVersion>/i);
             if (apiMatch) {
               const parsedApi = apiMatch[1].trim();
@@ -165,7 +233,7 @@ export async function loadManifest(source, name) {
     }
   }
 
-  // 4. Casing-agnostic fallback: Check if a bundle matches under camelCase, kebab-case, or case-insensitive name
+  // 3. Casing-agnostic fallback: Check if a bundle matches under camelCase, kebab-case, or case-insensitive name
   if (typeof source?.listLwcBundles === 'function') {
     try {
       const { bundles } = await source.listLwcBundles();
@@ -177,7 +245,7 @@ export async function loadManifest(source, name) {
     } catch {}
   }
 
-  throw new Error(`Component "${name}" not found in registry (${source.label}).`);
+  throw new Error(`Component "${name}" not found in repository (${source.label}).`);
 }
 
 // Depth-first; dependencies come before dependents. Detects cycles.

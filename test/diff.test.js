@@ -10,6 +10,7 @@ import { splitLines, generateUnifiedDiff, diff } from '../src/diff.js';
 
 const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const FIXTURE_REPO = path.join(root, 'fixtures', 'sfdx-repo');
 const BIN = path.join(root, 'bin', 'sf-lwc.js');
 
 test('splitLines correctly splits text and normalizes CRLF and LF', () => {
@@ -57,16 +58,16 @@ test('diff detects identical, modified, and missing files in SFDX project', asyn
     );
 
     // 1. Initial state: No files installed yet -> all files should be 'missing'
-    const initialDiff = await diff('modal', { from: root, cwd: projectRoot });
+    const initialDiff = await diff('modal', { from: FIXTURE_REPO, cwd: projectRoot });
     assert.equal(initialDiff.name, 'modal');
     assert.equal(initialDiff.identical, false);
     assert.ok(initialDiff.files.every(f => f.status === 'missing'));
 
     // 2. Install modal via CLI
-    await execFileAsync('node', [BIN, 'add', 'modal', '--from', root, '--cwd', projectRoot]);
+    await execFileAsync('node', [BIN, 'add', 'modal', '--from', FIXTURE_REPO, '--cwd', projectRoot]);
 
     // Now diff should be identical
-    const afterInstallDiff = await diff('modal', { from: root, cwd: projectRoot });
+    const afterInstallDiff = await diff('modal', { from: FIXTURE_REPO, cwd: projectRoot });
     assert.equal(afterInstallDiff.identical, true);
     assert.ok(afterInstallDiff.files.every(f => f.status === 'identical'));
 
@@ -74,7 +75,7 @@ test('diff detects identical, modified, and missing files in SFDX project', asyn
     const localModalJs = path.join(pkgDefault, 'lwc', 'modal', 'modal.js');
     await writeFile(localModalJs, '// Customized locally\nexport default class Modal {};\n');
 
-    const customizedDiff = await diff('modal', { from: root, cwd: projectRoot });
+    const customizedDiff = await diff('modal', { from: FIXTURE_REPO, cwd: projectRoot });
     assert.equal(customizedDiff.identical, false);
     const jsFile = customizedDiff.files.find(f => f.file === 'lwc/modal/modal.js');
     assert.ok(jsFile);
@@ -104,7 +105,7 @@ test('cli diff exits with code 0 on identical and code 1 on divergence', async (
     );
 
     // Install component
-    await execFileAsync('node', [BIN, 'add', 'toast-utils', '--from', root, '--cwd', projectRoot]);
+    await execFileAsync('node', [BIN, 'add', 'toast-utils', '--from', FIXTURE_REPO, '--cwd', projectRoot]);
 
     // 1. diff identical -> exit code 0
     const { stdout: identicalOut } = await execFileAsync('node', [
@@ -112,7 +113,7 @@ test('cli diff exits with code 0 on identical and code 1 on divergence', async (
       'diff',
       'toast-utils',
       '--from',
-      root,
+      FIXTURE_REPO,
       '--cwd',
       projectRoot
     ]);
@@ -123,7 +124,7 @@ test('cli diff exits with code 0 on identical and code 1 on divergence', async (
     await writeFile(localJs, '// local edit\n');
 
     await assert.rejects(
-      execFileAsync('node', [BIN, 'diff', 'toast-utils', '--from', root, '--cwd', projectRoot]),
+      execFileAsync('node', [BIN, 'diff', 'toast-utils', '--from', FIXTURE_REPO, '--cwd', projectRoot]),
       (err) => {
         assert.equal(err.code, 1);
         assert.match(err.stdout, /Differences found in 'toast-utils'/);
@@ -138,7 +139,7 @@ test('cli diff exits with code 0 on identical and code 1 on divergence', async (
       'diff',
       'toast-utils',
       '--from',
-      root,
+      FIXTURE_REPO,
       '--cwd',
       projectRoot,
       '--json'
