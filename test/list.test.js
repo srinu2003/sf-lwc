@@ -36,6 +36,10 @@ test('listComponents reads components from local SFDX project', async () => {
 test('listComponents auto-discovers components from direct SFDX directory without manifest.json', async () => {
   const tmp = await mkdtemp(path.join(tmpdir(), 'sf-sfdx-test-'));
   try {
+    await writeFile(
+      path.join(tmp, 'sfdx-project.json'),
+      JSON.stringify({ packageDirectories: [{ path: 'force-app', default: true }] })
+    );
     const lwcDir = path.join(tmp, 'force-app/main/default/lwc/customWidget');
     await mkdir(lwcDir, { recursive: true });
     await writeFile(path.join(lwcDir, 'customWidget.js'), 'export default class CustomWidget {}');
