@@ -7,3 +7,4 @@ node_modules/
 packages/*/lib/
 *.tsbuildinfo
 .agents/
+.sf-lwc/

@@ -590,6 +590,10 @@ test('stress: cli add with relative --cwd path resolves properly', async () => {
 test('stress: cli add from empty local registry throws descriptive error', async () => {
   const { tmpProject } = createTempProject('empty-reg-');
   const emptyRegDir = fs.mkdtempSync(path.join(os.tmpdir(), 'empty-reg-src-'));
+  fs.writeFileSync(
+    path.join(emptyRegDir, 'sfdx-project.json'),
+    JSON.stringify({ packageDirectories: [{ path: 'force-app', default: true }] })
+  );
 
   try {
     await execFileAsync('node', [BIN, 'add', 'modal', '--from', emptyRegDir, '--cwd', tmpProject]);

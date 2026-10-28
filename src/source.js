@@ -1,4 +1,5 @@
 import { readFile, stat, readdir } from 'node:fs/promises';
+import fs from 'node:fs';
 import path from 'node:path';
 import { NAME_RE } from './resolve.js';
 
@@ -62,14 +63,25 @@ export function createSource(rawSpec) {
       read,
       readFile: read,
       async readComponentFile(manifest, rel) {
-        if (rel.startsWith('classes/') || rel.startsWith('labels/')) {
-          return readFile(path.join(root, 'force-app', 'main', 'default', rel));
+        if (rel.startsWith('lwc/')) {
+          const rawPrefix = manifest._rawPrefix || `force-app/main/default/lwc/${manifest.name}`;
+          const subPath = rel.startsWith(`lwc/${manifest.name}/`)
+            ? rel.slice(`lwc/${manifest.name}/`.length)
+            : path.basename(rel);
+          return readFile(path.join(root, rawPrefix, subPath));
         }
-        const rawPrefix = manifest._rawPrefix || `force-app/main/default/lwc/${manifest.name}`;
-        const subPath = rel.startsWith(`lwc/${manifest.name}/`)
-          ? rel.slice(`lwc/${manifest.name}/`.length)
-          : path.basename(rel);
-        return readFile(path.join(root, rawPrefix, subPath));
+        const pkgDefault = manifest._packageDefault || 'force-app/main/default';
+        const candidatePaths = [
+          path.join(root, pkgDefault, rel),
+          path.join(root, 'force-app/main/default', rel),
+          path.join(root, 'main/default', rel)
+        ];
+        for (const p of candidatePaths) {
+          if (fs.existsSync(p)) {
+            return readFile(p);
+          }
+        }
+        return readFile(candidatePaths[0]);
       },
       async listLwcBundles(specOverride) {
         const displayPath = specOverride || rawSpec || root;
@@ -161,14 +173,19 @@ export function createSource(rawSpec) {
       return res.json();
     },
     async readComponentFile(manifest, rel) {
-      if (rel.startsWith('classes/') || rel.startsWith('labels/')) {
-        return this.read(`force-app/main/default/${rel}`);
+      if (rel.startsWith('lwc/')) {
+        const rawPrefix = manifest._rawPrefix || `force-app/main/default/lwc/${manifest.name}`;
+        const subPath = rel.startsWith(`lwc/${manifest.name}/`)
+          ? rel.slice(`lwc/${manifest.name}/`.length)
+          : path.basename(rel);
+        return this.read(`${rawPrefix}/${subPath}`);
       }
-      const rawPrefix = manifest._rawPrefix || `force-app/main/default/lwc/${manifest.name}`;
-      const subPath = rel.startsWith(`lwc/${manifest.name}/`)
-        ? rel.slice(`lwc/${manifest.name}/`.length)
-        : path.basename(rel);
-      return this.read(`${rawPrefix}/${subPath}`);
+      const pkgDefault = manifest._packageDefault || 'force-app/main/default';
+      try {
+        return await this.read(`${pkgDefault}/${rel}`);
+      } catch {
+        return await this.read(`main/default/${rel}`);
+      }
     },
     async getTree(specOverride) {
       if (this._treePromise) return this._treePromise;

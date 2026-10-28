@@ -327,6 +327,7 @@ test('stress: diff resolves files from SFDX layout correctly using manifest._raw
   const tmpProj = await mkdtemp(path.join(tmpdir(), 'sf-diff-proj-'));
   try {
     // SFDX Source Repo
+    await writeFile(path.join(tmpRepo, 'sfdx-project.json'), JSON.stringify({ packageDirectories: [{ path: 'force-app', default: true }] }));
     const repoLwc = path.join(tmpRepo, 'force-app/main/default/lwc/heroBanner');
     await mkdir(repoLwc, { recursive: true });
     await writeFile(path.join(repoLwc, 'heroBanner.js'), 'export default class HeroBanner { title = "Original"; }');
