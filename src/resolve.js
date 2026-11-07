@@ -1,6 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import fs from 'node:fs';
 import path from 'node:path';
+import { getLocalPackagePrefixes } from './source.js';
 
 export const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
 
@@ -84,10 +85,7 @@ export async function loadManifest(source, name) {
 
   // 2. Inspect local SFDX repository
   if (source.type === 'local' && source.root) {
-    const candidatePrefixes = [
-      'force-app/main/default/lwc',
-      'main/default/lwc'
-    ];
+    const candidatePrefixes = getLocalPackagePrefixes(source.root);
 
     for (const prefix of candidatePrefixes) {
       try {
@@ -174,10 +172,22 @@ export async function loadManifest(source, name) {
 
   // 3. Inspect remote SFDX repository tree
   if (source.fetchApi || source.type === 'remote') {
-    const candidatePrefixes = [
+    let candidatePrefixes = [
       'force-app/main/default/lwc',
       'main/default/lwc'
     ];
+    if (typeof source.getTree === 'function') {
+      try {
+        const tree = await source.getTree();
+        const detected = tree
+          .map((i) => i.path)
+          .filter((p) => p.endsWith(`/lwc/${name}/${name}.js-meta.xml`) || p.endsWith(`/lwc/${name}/${name}.js`))
+          .map((p) => p.replace(new RegExp(`/lwc/${name}/.*$`), '/lwc'));
+        if (detected.length) {
+          candidatePrefixes = [...new Set([...detected, ...candidatePrefixes])];
+        }
+      } catch {}
+    }
 
     for (const prefix of candidatePrefixes) {
       try {
