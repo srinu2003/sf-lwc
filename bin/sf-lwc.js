@@ -154,10 +154,19 @@ async function main() {
   const spinner = (!isInteractive || values.json) ? silentSpinner : p.spinner();
 
   if (cmd === 'doctor') {
+    if (isInteractive && !values.json) {
+      p.intro(pc.bgCyan(pc.black(' sf-lwc doctor ')));
+      spinner.start('Running project health diagnostics...');
+    }
+
     const res = await doctor({
       cwd: values.cwd,
       json: values.json
     });
+
+    if (isInteractive && !values.json) {
+      spinner.stop('Health diagnostics complete');
+    }
 
     if (values.json) {
       console.log(JSON.stringify(res, null, 2));
@@ -165,16 +174,17 @@ async function main() {
     }
 
     if (isInteractive) {
-      p.intro(pc.bgCyan(pc.black(' sf-lwc doctor ')));
       const checkLines = res.checks.map((c) => {
         const icon = c.status === 'pass' ? pc.green('✔') : c.status === 'warn' ? pc.yellow('!') : pc.red('✖');
         return `  ${icon} ${pc.bold(c.name)}: ${c.message}`;
       });
-      p.note(checkLines.join('\n'), 'Doctor Diagnostic Report');
+      p.note(checkLines.join('\n'), 'Diagnostic Report');
       if (res.ok) {
+        console.log('\x1b[32mAll health checks passed! Project is ready.\x1b[0m\n');
         p.outro(pc.green('All health checks passed! Project is ready.'));
         process.exit(0);
       } else {
+        console.log('\x1b[31mIssues detected. Please review the failures above.\x1b[0m\n');
         p.outro(pc.red('Issues detected. Please review the failures above.'));
         process.exit(1);
       }
@@ -203,6 +213,7 @@ async function main() {
   if (cmd === 'init') {
     if (isInteractive && !values.json) {
       p.intro(pc.bgCyan(pc.black(' sf-lwc init ')));
+      spinner.start('Initializing project configuration...');
     } else {
       console.log(`Project:  ${project.root}\n`);
     }
@@ -217,6 +228,7 @@ async function main() {
     });
 
     if (isInteractive && !values.json) {
+      spinner.stop('Saved sf-lwc.json');
       p.note(`${pc.bold('Project:')}  ${project.root}\n${pc.bold('Registry:')} ${registry}`, 'Initialized Configuration');
       p.outro(values['dry-run'] ? pc.yellow('Dry run complete. Nothing was changed. Done.') : pc.green('Done. Project initialized successfully!'));
     } else {
@@ -228,6 +240,7 @@ async function main() {
   if (cmd === 'remove' || cmd === 'rm') {
     if (isInteractive && !values.json) {
       p.intro(pc.bgCyan(pc.black(' sf-lwc remove ')));
+      spinner.start(`Verifying dependencies and removing ${names.join(', ')}...`);
     } else {
       console.log(`Project:  ${project.root}\n`);
     }
@@ -240,6 +253,7 @@ async function main() {
     });
 
     if (isInteractive && !values.json) {
+      spinner.stop('Components uninstalled and lockfile updated');
       p.note(`${pc.bold('Removed:')} ${names.join(', ')}\n${pc.bold('Project:')} ${project.root}`, 'Removal Summary');
       p.outro(values['dry-run'] ? pc.yellow('Dry run complete. Nothing was changed. Done.') : pc.green('Done. Component(s) removed successfully.'));
     } else {
@@ -249,6 +263,11 @@ async function main() {
   }
 
   if (cmd === 'update') {
+    if (isInteractive && !values.json) {
+      p.intro(pc.bgCyan(pc.black(' sf-lwc update ')));
+      spinner.start('Checking installed components for upstream updates...');
+    }
+
     const res = await update({
       names,
       all: values.all,
@@ -258,11 +277,29 @@ async function main() {
       force: values.force,
       json: values.json
     });
+
+    if (isInteractive && !values.json) {
+      spinner.stop('Update check completed');
+    }
+
     if (values.json) {
       console.log(JSON.stringify(res, null, 2));
       process.exit(0);
     }
-    console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
+
+    if (isInteractive) {
+      if (res.updated?.length) {
+        const updateLines = res.updated.map(
+          (u) => `  ${pc.green('✔')} ${pc.bold(u.name)} (${pc.dim(u.fromVersion)} → ${pc.green(u.toVersion)})`
+        );
+        p.note(updateLines.join('\n'), 'Updated Components');
+        p.outro(values['dry-run'] ? pc.yellow('Dry run complete. Nothing was changed. Done.') : pc.green('Done. All components updated successfully!'));
+      } else {
+        p.outro(pc.green('Done. All components are up to date.'));
+      }
+    } else {
+      console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
+    }
     return;
   }
 
@@ -271,11 +308,21 @@ async function main() {
       throw new Error('Specify a component name to diff, e.g. sf-lwc diff modal');
     }
     const componentName = names[0];
+
+    if (isInteractive && !values.json) {
+      p.intro(pc.bgCyan(pc.black(' sf-lwc diff ')));
+      spinner.start(`Comparing local component "${componentName}" against upstream...`);
+    }
+
     const result = await diff(componentName, {
       from: values.from ?? values.registry,
       cwd: values.cwd,
       json: values.json
     });
+
+    if (isInteractive && !values.json) {
+      spinner.stop('Diff inspection complete');
+    }
 
     if (values.json) {
       console.log(JSON.stringify(result, null, 2));
@@ -283,36 +330,78 @@ async function main() {
     }
 
     if (result.identical) {
-      console.log(`\x1b[32m✔\x1b[0m Component '${componentName}' matches registry exactly.`);
+      if (isInteractive) {
+        p.note(
+          `${pc.bold('Component:')} ${componentName}\n${pc.bold('Status:')}    100% match with upstream (identical)`,
+          'Diff Verification'
+        );
+        p.outro(pc.green(`Done. Component '${componentName}' matches registry exactly.`));
+      } else {
+        console.log(`\x1b[32m✔\x1b[0m Component '${componentName}' matches registry exactly.`);
+      }
       process.exit(0);
     }
 
-    console.log(`\x1b[33m!\x1b[0m Differences found in '${componentName}':\n`);
-    for (const file of result.files) {
-      if (file.status === 'identical') {
-        console.log(`\x1b[32m  ✔ ${file.file} (identical)\x1b[0m`);
-      } else if (file.status === 'missing') {
-        console.log(`\x1b[31m  ✖ ${file.file} (missing locally)\x1b[0m`);
-      } else if (file.status === 'modified') {
-        console.log(`\x1b[33m  ● ${file.file} (modified)\x1b[0m`);
-        if (file.diff) {
+    if (isInteractive) {
+      const summaryList = [];
+      for (const file of result.files) {
+        if (file.status === 'identical') {
+          summaryList.push(`  ${pc.green('✔')} ${file.file} ${pc.dim('(identical)')}`);
+        } else if (file.status === 'missing') {
+          summaryList.push(`  ${pc.red('✖')} ${file.file} ${pc.red('(missing locally)')}`);
+        } else if (file.status === 'modified') {
+          summaryList.push(`  ${pc.yellow('●')} ${file.file} ${pc.yellow('(modified)')}`);
+        }
+      }
+      p.note(summaryList.join('\n'), `Differences in '${componentName}'`);
+
+      for (const file of result.files) {
+        if (file.status === 'modified' && file.diff) {
+          console.log(`\n${pc.bold(pc.underline(file.file))}:`);
           const lines = file.diff.split('\n');
           for (const line of lines) {
             if (line.startsWith('+') && !line.startsWith('+++')) {
-              console.log(`\x1b[32m${line}\x1b[0m`);
+              console.log(pc.green(line));
             } else if (line.startsWith('-') && !line.startsWith('---')) {
-              console.log(`\x1b[31m${line}\x1b[0m`);
+              console.log(pc.red(line));
             } else if (line.startsWith('@@')) {
-              console.log(`\x1b[36m${line}\x1b[0m`);
+              console.log(pc.cyan(line));
             } else {
-              console.log(line);
+              console.log(pc.dim(line));
             }
           }
-          console.log('');
         }
       }
+      p.outro(pc.yellow(`Differences detected. Run with --overwrite to reset to upstream.`));
+      process.exit(1);
+    } else {
+      console.log(`\x1b[33m!\x1b[0m Differences found in '${componentName}':\n`);
+      for (const file of result.files) {
+        if (file.status === 'identical') {
+          console.log(`\x1b[32m  ✔ ${file.file} (identical)\x1b[0m`);
+        } else if (file.status === 'missing') {
+          console.log(`\x1b[31m  ✖ ${file.file} (missing locally)\x1b[0m`);
+        } else if (file.status === 'modified') {
+          console.log(`\x1b[33m  ● ${file.file} (modified)\x1b[0m`);
+          if (file.diff) {
+            const lines = file.diff.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('+') && !line.startsWith('+++')) {
+                console.log(`\x1b[32m${line}\x1b[0m`);
+              } else if (line.startsWith('-') && !line.startsWith('---')) {
+                console.log(`\x1b[31m${line}\x1b[0m`);
+              } else if (line.startsWith('@@')) {
+                console.log(`\x1b[36m${line}\x1b[0m`);
+              } else {
+                console.log(line);
+              }
+            }
+            console.log('');
+          }
+        }
+      }
+      process.exit(1);
     }
-    process.exit(1);
   }
 
   if (cmd === 'pack' || cmd === 'export') {
@@ -357,6 +446,54 @@ async function main() {
   }
 
   const source = createSource(spec);
+
+  if (cmd === 'list' || cmd === 'ls') {
+    if (remainingComponentTokens.length) {
+      throw new Error(`"${cmd}" does not take component names. Try: sf-lwc ${cmd} [source]`);
+    }
+
+    if (isInteractive && !values.json) {
+      p.intro(pc.bgCyan(pc.black(` sf-lwc ${cmd} `)));
+      spinner.start(`Connecting to ${pc.cyan(source.label)}...`);
+    }
+
+    const components = await listComponents(source, spec);
+
+    if (isInteractive && !values.json) {
+      spinner.stop(`Discovered ${pc.bold(pc.green(components.length))} components in ${pc.cyan(source.label)}`);
+
+      if (!components.length) {
+        p.note('No components found in this repository.', 'Registry Empty');
+        p.outro(pc.yellow('Check your source path or repository branch.'));
+        return;
+      }
+
+      const formattedLines = [];
+      for (const comp of components) {
+        const title = `◆ ${pc.bold(pc.cyan(comp.name))} ${pc.dim(`@${comp.version}`)}`;
+        formattedLines.push(title);
+        if (comp.description) {
+          formattedLines.push(`  ${pc.dim(comp.description)}`);
+        }
+        if (comp.dependencies && comp.dependencies.length) {
+          formattedLines.push(`  ${pc.dim('deps:')} ${pc.yellow(comp.dependencies.join(', '))}`);
+        }
+        formattedLines.push('');
+      }
+
+      // Remove trailing blank line
+      if (formattedLines.length && formattedLines[formattedLines.length - 1] === '') {
+        formattedLines.pop();
+      }
+
+      p.note(formattedLines.join('\n'), `Components in ${source.label}`);
+      p.outro(`Run ${pc.bold(pc.cyan(`sf-lwc add ${source.label} <name>`))} to install`);
+    } else {
+      console.log(`Registry: ${source.label}\n`);
+      console.log(formatComponentList(components));
+    }
+    return;
+  }
 
   if (cmd === 'add') {
     if (isInteractive && !values.json) {
@@ -432,13 +569,6 @@ async function main() {
     }
     return;
   }
-
-  if (remainingComponentTokens.length) {
-    throw new Error(`"${cmd}" does not take component names. Try: sf-lwc ${cmd} [source]`);
-  }
-  const components = await listComponents(source, spec);
-  console.log(`Registry: ${source.label}\n`);
-  console.log(formatComponentList(components));
 }
 
 main().catch((e) => {
