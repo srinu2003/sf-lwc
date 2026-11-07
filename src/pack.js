@@ -381,6 +381,15 @@ export async function pack(componentName, options = {}) {
     const manifestPath = path.join(destDir, 'manifest.json');
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
     log(`   wrote manifest.json`);
+
+    try {
+      const dotSfLwcDir = path.join(projectRoot, '.sf-lwc');
+      if (!fs.existsSync(dotSfLwcDir)) fs.mkdirSync(dotSfLwcDir, { recursive: true });
+      fs.writeFileSync(path.join(dotSfLwcDir, `${registryName}.json`), JSON.stringify(manifest, null, 2) + '\n');
+      if (registryName !== componentName) {
+        fs.writeFileSync(path.join(dotSfLwcDir, `${componentName}.json`), JSON.stringify(manifest, null, 2) + '\n');
+      }
+    } catch {}
   } else {
     log(`   [dry-run] Would package ${filesArray.length} total files.`);
     log(`   [dry-run] Would write manifest.json`);
