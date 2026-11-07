@@ -6,12 +6,6 @@ import { NAME_RE } from './resolve.js';
 /**
  * Normalizes any git or registry specifier (GitHub URL, git SSH, owner/repo)
  * to a canonical owner/repo[@ref] or local directory path.
- *
- * Examples:
- *   https://github.com/svierk/awesome-lwc-collection.git -> svierk/awesome-lwc-collection
- *   git@github.com:owner/repo.git -> owner/repo
- *   github:owner/repo -> owner/repo
- *   owner/repo@v1.0.0 -> owner/repo@v1.0.0
  */
 export function normalizeSpec(spec) {
   if (!spec || typeof spec !== 'string') return spec;
@@ -47,8 +41,28 @@ export function isSourceSpec(spec) {
   return false;
 }
 
+export function getLocalPackagePrefixes(sourceRoot) {
+  const prefixes = [];
+  try {
+    const sfdxProjectJson = path.join(sourceRoot, 'sfdx-project.json');
+    if (fs.existsSync(sfdxProjectJson)) {
+      const content = fs.readFileSync(sfdxProjectJson, 'utf8');
+      const parsed = JSON.parse(content.replace(/^\uFEFF/, ''));
+      for (const dir of parsed.packageDirectories ?? []) {
+        if (dir.path) {
+          const norm = dir.path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+          prefixes.push(`${norm}/main/default/lwc`);
+          prefixes.push(`${norm}/lwc`);
+        }
+      }
+    }
+  } catch {}
+  if (!prefixes.includes('force-app/main/default/lwc')) prefixes.push('force-app/main/default/lwc');
+  if (!prefixes.includes('main/default/lwc')) prefixes.push('main/default/lwc');
+  return [...new Set(prefixes)];
+}
+
 // A "source" is a registry: a local folder or a GitHub repo (owner/repo[@ref]).
-// Salesforce DX repo source (e.g. force-app/main/default/lwc/<name>).
 export function createSource(rawSpec) {
   const spec = normalizeSpec(rawSpec);
   if (/^(\.|\/|~)/.test(spec) || /^[a-zA-Z]:[\\/]/.test(spec)) {
@@ -100,28 +114,34 @@ export function createSource(rawSpec) {
           throw new Error(`Local directory '${displayPath}' does not exist.`);
         }
 
-        // Standard SFDX layout: force-app/main/default/lwc
-        const sfdxDir = path.join(root, 'force-app', 'main', 'default', 'lwc');
-        try {
-          const entries = await readdir(sfdxDir, { withFileTypes: true });
-          const bundles = [];
-          for (const entry of entries) {
-            if (entry.isDirectory() && NAME_RE.test(entry.name)) {
-              bundles.push({
-                name: entry.name,
-                layout: 'sfdx',
-                prefix: `force-app/main/default/lwc/${entry.name}`,
-                metaXmlPath: path.join(sfdxDir, entry.name, `${entry.name}.js-meta.xml`)
-              });
+        const candidatePrefixes = getLocalPackagePrefixes(root);
+        const bundlesMap = new Map();
+
+        for (const prefix of candidatePrefixes) {
+          const lwcDir = path.join(root, prefix);
+          try {
+            const entries = await readdir(lwcDir, { withFileTypes: true });
+            for (const entry of entries) {
+              if (entry.isDirectory() && NAME_RE.test(entry.name)) {
+                if (!bundlesMap.has(entry.name)) {
+                  bundlesMap.set(entry.name, {
+                    name: entry.name,
+                    layout: 'sfdx',
+                    prefix: `${prefix}/${entry.name}`,
+                    metaXmlPath: path.join(lwcDir, entry.name, `${entry.name}.js-meta.xml`)
+                  });
+                }
+              }
             }
-          }
-          if (bundles.length > 0) {
-            return {
-              layout: 'sfdx',
-              bundles: bundles.sort((a, b) => a.name.localeCompare(b.name))
-            };
-          }
-        } catch {}
+          } catch {}
+        }
+
+        if (bundlesMap.size > 0) {
+          return {
+            layout: 'sfdx',
+            bundles: Array.from(bundlesMap.values()).sort((a, b) => a.name.localeCompare(b.name))
+          };
+        }
 
         throw new Error(`Directory '${displayPath}' does not contain an LWC bundle (expected standard layout: force-app/main/default/lwc).`);
       }
@@ -231,19 +251,21 @@ export function createSource(rawSpec) {
       const displaySpec = specOverride || rawSpec;
       const tree = await this.getTree(displaySpec);
 
-      // 1. Primary standard layout: force-app/main/default/lwc
       const sfdxMap = new Map();
       for (const item of tree) {
-        const match = item.path.match(/^force-app\/main\/default\/lwc\/([^/]+)(?:\/(.*))?$/);
+        // Matches force-app/main/default/lwc/<comp>, main/default/lwc/<comp>, or <pkg>/lwc/<comp>
+        const match = item.path.match(/^(?:.*\/)?(?:main\/default\/lwc|lwc)\/([^/]+)(?:\/(.*))?$/);
         if (!match) continue;
         const compName = match[1];
         if (!NAME_RE.test(compName)) continue;
         if (!sfdxMap.has(compName)) {
+          const prefixMatch = item.path.match(/^(.*\/lwc\/[^/]+)/);
+          const prefix = prefixMatch ? prefixMatch[1] : `force-app/main/default/lwc/${compName}`;
           sfdxMap.set(compName, {
             name: compName,
             layout: 'sfdx',
-            prefix: `force-app/main/default/lwc/${compName}`,
-            metaXmlPath: `force-app/main/default/lwc/${compName}/${compName}.js-meta.xml`,
+            prefix,
+            metaXmlPath: `${prefix}/${compName}.js-meta.xml`,
             files: []
           });
         }
