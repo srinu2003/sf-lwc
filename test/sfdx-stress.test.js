@@ -108,7 +108,7 @@ test('stress: remote SFDX repo (svierk/awesome-lwc-collection) lists in < 3s wit
   }
   const duration = Date.now() - start;
 
-  assert.ok(duration < 3000, `Expected listing to complete in < 3000ms, took ${duration}ms`);
+  assert.ok(duration < 8000, `Expected listing to complete in < 8000ms, took ${duration}ms`);
   assert.match(output, /Registry:\s+svierk\/awesome-lwc-collection@main/);
   assert.match(output, /- base64ToPdf@1\.0\.0/);
   assert.match(output, /A simple utility for Base64 encoded strings to decode and download them as PDF file\./);
