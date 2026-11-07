@@ -50,6 +50,14 @@ export async function remove({ names, project, dryRun = false, force = false, lo
     log(`- ${name}@${component.version}`);
 
     for (const rel of component.files ?? []) {
+      const stillNeededBy = Object.entries(installed).find(([otherName, otherComp]) => {
+        return !namesToRemove.has(otherName) && (otherComp.files ?? []).includes(rel);
+      });
+      if (stillNeededBy) {
+        log(`    keep (shared)  ${rel} (used by ${stillNeededBy[0]})`);
+        continue;
+      }
+
       const file = path.join(project.targetRoot, rel);
       if (!(await exists(file))) continue;
       log(`    ${dryRun ? 'would delete' : 'delete'}  ${rel}`);
@@ -59,7 +67,12 @@ export async function remove({ names, project, dryRun = false, force = false, lo
       }
     }
 
-    const labelNames = component.labels ?? [];
+    const labelNames = (component.labels ?? []).filter((lbl) => {
+      return !Object.entries(installed).some(([otherName, otherComp]) => {
+        return !namesToRemove.has(otherName) && (otherComp.labels ?? []).includes(lbl);
+      });
+    });
+
     if (labelNames.length) {
       const labelFile = path.join(project.targetRoot, 'labels', 'CustomLabels.labels-meta.xml');
       if (await exists(labelFile)) {
