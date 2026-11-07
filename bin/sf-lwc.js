@@ -433,7 +433,9 @@ async function main() {
     return;
   }
 
-  if (names.length) throw new Error(`"${cmd}" does not take component names. Try: sf-lwc ${cmd}`);
+  if (remainingComponentTokens.length) {
+    throw new Error(`"${cmd}" does not take component names. Try: sf-lwc ${cmd} [source]`);
+  }
   const components = await listComponents(source, spec);
   console.log(`Registry: ${source.label}\n`);
   console.log(formatComponentList(components));
