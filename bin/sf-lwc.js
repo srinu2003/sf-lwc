@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
+import * as p from '@clack/prompts';
+import pc from 'picocolors';
 import { createSource, isSourceSpec } from '../src/source.js';
 import { resolve } from '../src/resolve.js';
 import { findProject } from '../src/project.js';
@@ -11,11 +13,58 @@ import { pack } from '../src/pack.js';
 import { diff } from '../src/diff.js';
 import { update } from '../src/update.js';
 import { doctor } from '../src/doctor.js';
-import { selectComponents } from '../src/selector.js';
+import { selectComponents, isInteractiveSession } from '../src/selector.js';
 
-const HELP = `sf-lwc — add open-source LWC components to a Salesforce DX project
+const RESET = '\x1b[0m';
+const BOLD = '\x1b[1m';
+const DIM = '\x1b[38;5;102m';
+const TEXT = '\x1b[38;5;145m';
 
-Usage:
+const LOGO_LINES = [
+  '███████╗███████╗      ██╗     ██╗    ██╗ ██████╗ ',
+  '██╔════╝██╔════╝      ██║     ██║    ██║██╔════╝ ',
+  '███████╗█████╗  █████╗██║     ██║ █╗ ██║██║      ',
+  '╚════██║██╔══╝  ╚════╝██║     ██║███╗██║██║      ',
+  '███████║██║           ███████╗╚███╔███╔╝╚██████╗ ',
+  '╚══════╝╚═╝           ╚══════╝ ╚══╝╚══╝  ╚═════╝ '
+];
+
+const GRAYS = [
+  '\x1b[38;5;250m',
+  '\x1b[38;5;248m',
+  '\x1b[38;5;245m',
+  '\x1b[38;5;243m',
+  '\x1b[38;5;240m',
+  '\x1b[38;5;238m'
+];
+
+function showLogo() {
+  console.log();
+  LOGO_LINES.forEach((line, i) => {
+    console.log(`${GRAYS[i]}${line}${RESET}`);
+  });
+}
+
+function showBanner() {
+  showLogo();
+  console.log();
+  console.log(`${DIM}Add open-source LWC components & dependencies to your Salesforce DX project${RESET}`);
+  console.log();
+  console.log(`  ${DIM}$${RESET} ${TEXT}sf-lwc add ${DIM}<source> [component]${RESET}   ${DIM}Install an LWC component & dependencies${RESET}`);
+  console.log(`  ${DIM}$${RESET} ${TEXT}sf-lwc list ${DIM}[source]${RESET}              ${DIM}Discover available components in registry${RESET}`);
+  console.log(`  ${DIM}$${RESET} ${TEXT}sf-lwc pack ${DIM}<component>${RESET}           ${DIM}Export component & compile metadata dependencies${RESET}`);
+  console.log(`  ${DIM}$${RESET} ${TEXT}sf-lwc update ${DIM}[component]${RESET}         ${DIM}Update installed components to latest versions${RESET}`);
+  console.log(`  ${DIM}$${RESET} ${TEXT}sf-lwc remove ${DIM}<component>${RESET}         ${DIM}Safely remove an installed component${RESET}`);
+  console.log(`  ${DIM}$${RESET} ${TEXT}sf-lwc diff ${DIM}<component>${RESET}           ${DIM}Inspect local modifications vs registry version${RESET}`);
+  console.log(`  ${DIM}$${RESET} ${TEXT}sf-lwc doctor${RESET}                     ${DIM}Verify Salesforce DX project health & tooling${RESET}`);
+  console.log(`  ${DIM}$${RESET} ${TEXT}sf-lwc init${RESET}                       ${DIM}Initialize project configuration${RESET}`);
+  console.log();
+  console.log(`${DIM}try:${RESET} sf-lwc add svierk/awesome-lwc-collection`);
+  console.log();
+}
+
+const HELP = `
+${BOLD}Usage:${RESET}
   sf-lwc init [options]
   sf-lwc doctor [options]
   sf-lwc add [source] [component...] [options]
@@ -28,19 +77,35 @@ Usage:
   sf-lwc pack <component> [options]
   sf-lwc export <component> [options]
 
-Options:
-  --from <registry>       owner/repo[@ref] on GitHub, or a local path
-                          (default: registry in sf-lwc.json or $SF_LWC_REGISTRY)
-  --registry <reg>        alias for --from
-  -o, --target-org <org>  target Salesforce org (default: default org)
-  -d, --output <dir>      target destination directory (default: components/<component>)
-  -w, --overwrite         replace files or destination that already exist
-  --dry-run               show what would happen, change nothing
-  --force                 force overwrite (init) or remove even with dependents (remove)
-  --json                  output in JSON format
-  --cwd <dir>             project directory (default: current)
-  -h, --help              show this help
+${BOLD}Commands:${RESET}
+  add [source] [component...] Install LWC components & dependencies
+  list, ls [source]           List components in source repository
+  pack, export <component>    Package component & metadata from target org
+  update [component...]       Update installed components to latest version
+  remove, rm <component...>   Remove installed components cleanly
+  diff <component>            Compare local component against registry
+  doctor                      Verify project structure and integrity
+  init                        Initialize sf-lwc.json configuration
+
+${BOLD}Options:${RESET}
+  --from <registry>           owner/repo[@ref] on GitHub, or a local path
+                              (default: registry in sf-lwc.json or $SF_LWC_REGISTRY)
+  --registry <reg>            alias for --from
+  -o, --target-org <org>      target Salesforce org (default: default org)
+  -d, --output <dir>          target destination directory
+  -w, --overwrite             replace files or destination that already exist
+  --dry-run                   simulate changes without modifying files
+  --force                     force overwrite (init) or remove with dependents
+  --json                      output results in machine-readable JSON
+  --cwd <dir>                 project directory (default: current directory)
+  -h, --help                  show this help
 `;
+
+const silentSpinner = {
+  start: () => {},
+  stop: () => {},
+  message: () => {}
+};
 
 async function main() {
   const { values, positionals } = parseArgs({
@@ -59,8 +124,14 @@ async function main() {
       help: { type: 'boolean', short: 'h', default: false }
     }
   });
+
   const [cmd, ...names] = positionals;
-  if (values.help || !cmd) return console.log(HELP);
+  if (values.help || !cmd) {
+    showBanner();
+    console.log(HELP);
+    return;
+  }
+
   if (!['init', 'add', 'remove', 'rm', 'diff', 'update', 'doctor', 'list', 'ls', 'pack', 'export'].includes(cmd)) {
     throw new Error(`Unknown command "${cmd}". Try --help.`);
   }
@@ -79,6 +150,9 @@ async function main() {
     if (!['list', 'ls'].includes(cmd)) throw err;
   }
 
+  const isInteractive = isInteractiveSession(process.stdin, process.stdout, values);
+  const spinner = (!isInteractive || values.json) ? silentSpinner : p.spinner();
+
   if (cmd === 'doctor') {
     const res = await doctor({
       cwd: values.cwd,
@@ -90,28 +164,49 @@ async function main() {
       process.exit(res.ok ? 0 : 1);
     }
 
-    console.log('=== sf-lwc Doctor Diagnostic Report ===\n');
-    for (const c of res.checks) {
-      if (c.status === 'pass') {
-        console.log(`  \x1b[32m✔\x1b[0m ${c.name}: ${c.message}`);
-      } else if (c.status === 'warn') {
-        console.log(`  \x1b[33m!\x1b[0m ${c.name}: ${c.message}`);
+    if (isInteractive) {
+      p.intro(pc.bgCyan(pc.black(' sf-lwc doctor ')));
+      const checkLines = res.checks.map((c) => {
+        const icon = c.status === 'pass' ? pc.green('✔') : c.status === 'warn' ? pc.yellow('!') : pc.red('✖');
+        return `  ${icon} ${pc.bold(c.name)}: ${c.message}`;
+      });
+      p.note(checkLines.join('\n'), 'Doctor Diagnostic Report');
+      if (res.ok) {
+        p.outro(pc.green('All health checks passed! Project is ready.'));
+        process.exit(0);
       } else {
-        console.log(`  \x1b[31m✖\x1b[0m ${c.name}: ${c.message}`);
+        p.outro(pc.red('Issues detected. Please review the failures above.'));
+        process.exit(1);
       }
-    }
-    console.log('');
-    if (res.ok) {
-      console.log('\x1b[32mAll health checks passed! Project is ready.\x1b[0m\n');
-      process.exit(0);
     } else {
-      console.log('\x1b[31mIssues detected. Please review the failures above.\x1b[0m\n');
-      process.exit(1);
+      console.log('=== sf-lwc Doctor Diagnostic Report ===\n');
+      for (const c of res.checks) {
+        if (c.status === 'pass') {
+          console.log(`  \x1b[32m✔\x1b[0m ${c.name}: ${c.message}`);
+        } else if (c.status === 'warn') {
+          console.log(`  \x1b[33m!\x1b[0m ${c.name}: ${c.message}`);
+        } else {
+          console.log(`  \x1b[31m✖\x1b[0m ${c.name}: ${c.message}`);
+        }
+      }
+      console.log('');
+      if (res.ok) {
+        console.log('\x1b[32mAll health checks passed! Project is ready.\x1b[0m\n');
+        process.exit(0);
+      } else {
+        console.log('\x1b[31mIssues detected. Please review the failures above.\x1b[0m\n');
+        process.exit(1);
+      }
     }
   }
 
   if (cmd === 'init') {
-    console.log(`Project:  ${project.root}\n`);
+    if (isInteractive && !values.json) {
+      p.intro(pc.bgCyan(pc.black(' sf-lwc init ')));
+    } else {
+      console.log(`Project:  ${project.root}\n`);
+    }
+
     const defaultRegistry = 'srinu2003/sf-lwc@main';
     const registry = values.from ?? values.registry ?? process.env.SF_LWC_REGISTRY ?? defaultRegistry;
     await init({
@@ -120,19 +215,36 @@ async function main() {
       force: values.force,
       dryRun: values['dry-run']
     });
-    console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
+
+    if (isInteractive && !values.json) {
+      p.note(`${pc.bold('Project:')}  ${project.root}\n${pc.bold('Registry:')} ${registry}`, 'Initialized Configuration');
+      p.outro(values['dry-run'] ? pc.yellow('Dry run complete. Nothing was changed. Done.') : pc.green('Done. Project initialized successfully!'));
+    } else {
+      console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
+    }
     return;
   }
 
   if (cmd === 'remove' || cmd === 'rm') {
-    console.log(`Project:  ${project.root}\n`);
+    if (isInteractive && !values.json) {
+      p.intro(pc.bgCyan(pc.black(' sf-lwc remove ')));
+    } else {
+      console.log(`Project:  ${project.root}\n`);
+    }
+
     await remove({
       names,
       project,
       dryRun: values['dry-run'],
       force: values.force
     });
-    console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
+
+    if (isInteractive && !values.json) {
+      p.note(`${pc.bold('Removed:')} ${names.join(', ')}\n${pc.bold('Project:')} ${project.root}`, 'Removal Summary');
+      p.outro(values['dry-run'] ? pc.yellow('Dry run complete. Nothing was changed. Done.') : pc.green('Done. Component(s) removed successfully.'));
+    } else {
+      console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
+    }
     return;
   }
 
@@ -208,6 +320,10 @@ async function main() {
     const projectRoot = project ? project.root : values.cwd;
     const packageDefault = project ? project.targetRoot : undefined;
 
+    if (isInteractive && !values.json) {
+      p.intro(pc.bgCyan(pc.black(' sf-lwc pack ')));
+    }
+
     await pack(componentName, {
       targetOrg: values['target-org'],
       output: values.output,
@@ -241,7 +357,12 @@ async function main() {
   }
 
   const source = createSource(spec);
+
   if (cmd === 'add') {
+    if (isInteractive && !values.json) {
+      p.intro(pc.bgCyan(pc.black(' sf-lwc add ')));
+    }
+
     let targetNames = Array.from(
       new Set(
         remainingComponentTokens
@@ -255,27 +376,60 @@ async function main() {
       if (!process.stdin.isTTY || !process.stdout.isTTY || process.env.CI || values.json) {
         throw new Error('No component specified and terminal is non-interactive. Specify at least one component, e.g. sf-lwc add <component>');
       }
+
+      spinner.start(`Discovering available components in "${source.label}"...`);
       const components = await listComponents(source, spec);
+      spinner.stop(`Discovered ${components.length} component(s) in "${source.label}"`);
+
       if (!components.length) {
         throw new Error(`No components found in repository "${source.label}".`);
       }
       targetNames = await selectComponents(components);
       if (!targetNames.length) {
-        console.log('No components selected.');
+        p.cancel('No components selected.');
         return;
       }
     }
 
-    console.log(`Registry: ${source.label}\nProject:  ${project.root}\n`);
+    if (isInteractive && !values.json) {
+      p.log.info(`${pc.bold('Source:')}  ${source.label}`);
+      p.log.info(`${pc.bold('Project:')} ${project.root}`);
+    } else {
+      console.log(`Registry: ${source.label}\nProject:  ${project.root}\n`);
+    }
 
+    spinner.start(`Resolving ${targetNames.join(', ')} and metadata dependencies...`);
     const manifests = await resolve(source, targetNames);
-    const notes = await install({
-      source, manifests, project,
-      overwrite: values.overwrite, dryRun: values['dry-run']
-    });
+    spinner.stop(`Resolved ${manifests.length} component manifest(s)`);
 
-    console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
-    if (notes.length) console.log('\nManual steps:\n' + notes.map((n) => `  - ${n}`).join('\n'));
+    spinner.start(`Installing files into ${pc.dim(project.root)}...`);
+    const notes = await install({
+      source,
+      manifests,
+      project,
+      overwrite: values.overwrite,
+      dryRun: values['dry-run']
+    });
+    spinner.stop(values['dry-run'] ? 'Dry run simulation finished' : 'Files written and lockfile updated');
+
+    if (isInteractive && !values.json) {
+      const summaryLines = [
+        `${pc.bold('Project:')}  ${project.root}`,
+        `${pc.bold('Source:')}   ${source.label}`,
+        `${pc.bold('Added:')}    ${manifests.map((m) => m.name).join(', ')}`
+      ];
+      if (notes.length) {
+        summaryLines.push('', pc.bold('Manual post-install steps:'));
+        for (const n of notes) {
+          summaryLines.push(`  • ${n}`);
+        }
+      }
+      p.note(summaryLines.join('\n'), values['dry-run'] ? 'Dry Run Summary' : 'Installation Summary');
+      p.outro(values['dry-run'] ? pc.yellow('Dry run complete. Nothing was changed. Done.') : pc.green('Done. All components installed successfully!'));
+    } else {
+      console.log(values['dry-run'] ? '\nDry run complete. Nothing was changed.' : '\nDone.');
+      if (notes.length) console.log('\nManual steps:\n' + notes.map((n) => `  - ${n}`).join('\n'));
+    }
     return;
   }
 
@@ -285,4 +439,7 @@ async function main() {
   console.log(formatComponentList(components));
 }
 
-main().catch((e) => { console.error(`Error: ${e.message}`); process.exit(1); });
+main().catch((e) => {
+  console.error(`Error: ${e.message}`);
+  process.exit(1);
+});
