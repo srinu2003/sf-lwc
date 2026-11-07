@@ -461,34 +461,26 @@ async function main() {
     const components = await listComponents(source, spec);
 
     if (isDisplayTty) {
-      spinner.stop(`Discovered ${pc.bold(pc.green(components.length))} components in ${pc.cyan(source.label)}`);
+      spinner.stop(`Discovered ${pc.bold(pc.green(components.length))} component(s) in ${pc.cyan(source.label)}`);
 
       if (!components.length) {
-        p.note('No components found in this repository.', 'Registry Empty');
+        console.log(`\n  ${pc.yellow('No components found in this repository.')}\n`);
         p.outro(pc.yellow('Check your source path or repository branch.'));
         return;
       }
 
-      const formattedLines = [];
+      console.log(`\n${pc.bold('Components in')} ${pc.cyan(source.label)} ${pc.dim(`(${components.length} available)`)}:\n`);
       for (const comp of components) {
-        const title = `◆ ${pc.bold(pc.cyan(comp.name))} ${pc.dim(`@${comp.version}`)}`;
-        formattedLines.push(title);
+        console.log(`  ${pc.cyan('-')} ${pc.bold(comp.name)}${pc.dim(`@${comp.version}`)}`);
         if (comp.description) {
-          formattedLines.push(`  ${pc.dim(comp.description)}`);
+          console.log(`    ${pc.dim(comp.description)}`);
         }
         if (comp.dependencies && comp.dependencies.length) {
-          formattedLines.push(`  ${pc.dim('deps:')} ${pc.yellow(comp.dependencies.join(', '))}`);
+          console.log(`    ${pc.dim('dependencies:')} ${pc.yellow(comp.dependencies.join(', '))}`);
         }
-        formattedLines.push('');
       }
-
-      // Remove trailing blank line
-      if (formattedLines.length && formattedLines[formattedLines.length - 1] === '') {
-        formattedLines.pop();
-      }
-
-      p.note(formattedLines.join('\n'), `Components in ${source.label}`);
-      p.outro(`Run ${pc.bold(pc.cyan(`sf-lwc add ${source.label} <name>`))} to install`);
+      console.log();
+      p.outro(`Run ${pc.cyan(`sf-lwc add ${source.label} <name>`)} to install`);
     } else {
       console.log(`Registry: ${source.label}\n`);
       console.log(formatComponentList(components));
