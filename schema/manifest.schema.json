@@ -5,7 +5,7 @@
   "required": ["name", "version", "apiVersion", "files"],
   "additionalProperties": false,
   "properties": {
-    "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "description": "Registry name; must match the folder name under components/." },
+    "name": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$", "description": "Component name (kebab-case, camelCase, or snake_case)." },
     "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
     "description": { "type": "string" },
     "apiVersion": { "type": "string", "pattern": "^\\d+\\.0$", "description": "Minimum Salesforce API version, e.g. \"62.0\"." },
@@ -36,6 +36,8 @@
     "notes": {
       "type": "array", "items": { "type": "string" },
       "description": "Manual steps printed after install (permission sets, objects, fields, etc.)."
-    }
+    },
+    "_rawPrefix": { "type": "string" },
+    "_packageDefault": { "type": "string" }
   }
 }
