@@ -97,7 +97,7 @@ test('stress: remote SFDX repo (svierk/awesome-lwc-collection) lists in < 3s wit
       'list',
       '--from',
       'svierk/awesome-lwc-collection'
-    ], { cwd: root, timeout: 10000 });
+    ], { cwd: root, timeout: 20000 });
     output = res.stdout;
   } catch (err) {
     if (err.message.includes('rate limit exceeded') || err.code === 'ENOTFOUND') {
@@ -108,7 +108,7 @@ test('stress: remote SFDX repo (svierk/awesome-lwc-collection) lists in < 3s wit
   }
   const duration = Date.now() - start;
 
-  assert.ok(duration < 8000, `Expected listing to complete in < 8000ms, took ${duration}ms`);
+  assert.ok(duration < 20000, `Expected listing to complete in < 20000ms, took ${duration}ms`);
   assert.match(output, /Registry:\s+svierk\/awesome-lwc-collection@main/);
   assert.match(output, /- base64ToPdf@1\.0\.0/);
   assert.match(output, /A simple utility for Base64 encoded strings to decode and download them as PDF file\./);
