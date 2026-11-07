@@ -151,10 +151,11 @@ async function main() {
   }
 
   const isInteractive = isInteractiveSession(process.stdin, process.stdout, values);
-  const spinner = (!isInteractive || values.json) ? silentSpinner : p.spinner();
+  const isDisplayTty = Boolean(process.stdout.isTTY && !values.json);
+  const spinner = (!isDisplayTty || values.json) ? silentSpinner : p.spinner();
 
   if (cmd === 'doctor') {
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       p.intro(pc.bgCyan(pc.black(' sf-lwc doctor ')));
       spinner.start('Running project health diagnostics...');
     }
@@ -164,7 +165,7 @@ async function main() {
       json: values.json
     });
 
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       spinner.stop('Health diagnostics complete');
     }
 
@@ -173,7 +174,7 @@ async function main() {
       process.exit(res.ok ? 0 : 1);
     }
 
-    if (isInteractive) {
+    if (isDisplayTty) {
       const checkLines = res.checks.map((c) => {
         const icon = c.status === 'pass' ? pc.green('✔') : c.status === 'warn' ? pc.yellow('!') : pc.red('✖');
         return `  ${icon} ${pc.bold(c.name)}: ${c.message}`;
@@ -211,7 +212,7 @@ async function main() {
   }
 
   if (cmd === 'init') {
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       p.intro(pc.bgCyan(pc.black(' sf-lwc init ')));
       spinner.start('Initializing project configuration...');
     } else {
@@ -227,7 +228,7 @@ async function main() {
       dryRun: values['dry-run']
     });
 
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       spinner.stop('Saved sf-lwc.json');
       p.note(`${pc.bold('Project:')}  ${project.root}\n${pc.bold('Registry:')} ${registry}`, 'Initialized Configuration');
       p.outro(values['dry-run'] ? pc.yellow('Dry run complete. Nothing was changed. Done.') : pc.green('Done. Project initialized successfully!'));
@@ -238,7 +239,7 @@ async function main() {
   }
 
   if (cmd === 'remove' || cmd === 'rm') {
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       p.intro(pc.bgCyan(pc.black(' sf-lwc remove ')));
       spinner.start(`Verifying dependencies and removing ${names.join(', ')}...`);
     } else {
@@ -252,7 +253,7 @@ async function main() {
       force: values.force
     });
 
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       spinner.stop('Components uninstalled and lockfile updated');
       p.note(`${pc.bold('Removed:')} ${names.join(', ')}\n${pc.bold('Project:')} ${project.root}`, 'Removal Summary');
       p.outro(values['dry-run'] ? pc.yellow('Dry run complete. Nothing was changed. Done.') : pc.green('Done. Component(s) removed successfully.'));
@@ -263,7 +264,7 @@ async function main() {
   }
 
   if (cmd === 'update') {
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       p.intro(pc.bgCyan(pc.black(' sf-lwc update ')));
       spinner.start('Checking installed components for upstream updates...');
     }
@@ -278,7 +279,7 @@ async function main() {
       json: values.json
     });
 
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       spinner.stop('Update check completed');
     }
 
@@ -287,7 +288,7 @@ async function main() {
       process.exit(0);
     }
 
-    if (isInteractive) {
+    if (isDisplayTty) {
       if (res.updated?.length) {
         const updateLines = res.updated.map(
           (u) => `  ${pc.green('✔')} ${pc.bold(u.name)} (${pc.dim(u.fromVersion)} → ${pc.green(u.toVersion)})`
@@ -309,7 +310,7 @@ async function main() {
     }
     const componentName = names[0];
 
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       p.intro(pc.bgCyan(pc.black(' sf-lwc diff ')));
       spinner.start(`Comparing local component "${componentName}" against upstream...`);
     }
@@ -320,7 +321,7 @@ async function main() {
       json: values.json
     });
 
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       spinner.stop('Diff inspection complete');
     }
 
@@ -330,7 +331,7 @@ async function main() {
     }
 
     if (result.identical) {
-      if (isInteractive) {
+      if (isDisplayTty) {
         p.note(
           `${pc.bold('Component:')} ${componentName}\n${pc.bold('Status:')}    100% match with upstream (identical)`,
           'Diff Verification'
@@ -342,7 +343,7 @@ async function main() {
       process.exit(0);
     }
 
-    if (isInteractive) {
+    if (isDisplayTty) {
       const summaryList = [];
       for (const file of result.files) {
         if (file.status === 'identical') {
@@ -409,7 +410,7 @@ async function main() {
     const projectRoot = project ? project.root : values.cwd;
     const packageDefault = project ? project.targetRoot : undefined;
 
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       p.intro(pc.bgCyan(pc.black(' sf-lwc pack ')));
     }
 
@@ -452,14 +453,14 @@ async function main() {
       throw new Error(`"${cmd}" does not take component names. Try: sf-lwc ${cmd} [source]`);
     }
 
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       p.intro(pc.bgCyan(pc.black(` sf-lwc ${cmd} `)));
       spinner.start(`Connecting to ${pc.cyan(source.label)}...`);
     }
 
     const components = await listComponents(source, spec);
 
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       spinner.stop(`Discovered ${pc.bold(pc.green(components.length))} components in ${pc.cyan(source.label)}`);
 
       if (!components.length) {
@@ -496,7 +497,7 @@ async function main() {
   }
 
   if (cmd === 'add') {
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       p.intro(pc.bgCyan(pc.black(' sf-lwc add ')));
     }
 
@@ -528,7 +529,7 @@ async function main() {
       }
     }
 
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       p.log.info(`${pc.bold('Source:')}  ${source.label}`);
       p.log.info(`${pc.bold('Project:')} ${project.root}`);
     } else {
@@ -549,7 +550,7 @@ async function main() {
     });
     spinner.stop(values['dry-run'] ? 'Dry run simulation finished' : 'Files written and lockfile updated');
 
-    if (isInteractive && !values.json) {
+    if (isDisplayTty) {
       const summaryLines = [
         `${pc.bold('Project:')}  ${project.root}`,
         `${pc.bold('Source:')}   ${source.label}`,
