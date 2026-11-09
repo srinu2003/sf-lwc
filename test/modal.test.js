@@ -38,7 +38,7 @@ test('modal manifest is valid conforming to schema and validate()', async () => 
 
 test('cli list includes modal in available components', async () => {
   const { stdout } = await execFileAsync('node', [BIN, 'list', '--from', FIXTURE_REPO]);
-  assert.match(stdout, /- modal@1\.0\.0/);
+  assert.match(stdout, /- modal @1\.0\.0/);
   assert.match(stdout, /Accessible, SLDS-compliant modal dialog component/);
 });
 

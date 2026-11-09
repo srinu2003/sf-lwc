@@ -475,7 +475,7 @@ async function main() {
 
       console.log(`\n${pc.bold('Components in')} ${pc.cyan(source.label)} ${pc.dim(`(${components.length} available)`)}:\n`);
       for (const comp of components) {
-        console.log(`  ${pc.cyan('-')} ${pc.bold(comp.name)}${pc.dim(`@${comp.version}`)}`);
+        console.log(`  ${pc.cyan('-')} ${pc.bold(comp.name)} ${pc.dim(`@${comp.version}`)}`);
         if (comp.description) {
           console.log(`    ${pc.dim(comp.description)}`);
         }

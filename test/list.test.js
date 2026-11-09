@@ -73,14 +73,14 @@ test('cli list command prints component details', async () => {
   const fixtureRepo = path.join(root, 'fixtures', 'sfdx-repo');
   const { stdout } = await execFileAsync('node', ['bin/sf-lwc.js', 'list', '--from', fixtureRepo], { cwd: root });
   assert.match(stdout, /Registry:\s+/);
-  assert.match(stdout, /- dataTable@1\.0\.0/);
-  assert.match(stdout, /- modal@1\.0\.0/);
-  assert.match(stdout, /- toastUtils@1\.0\.0/);
+  assert.match(stdout, /- dataTable @1\.0\.0/);
+  assert.match(stdout, /- modal @1\.0\.0/);
+  assert.match(stdout, /- toastUtils @1\.0\.0/);
 });
 
 test('cli ls alias works', async () => {
   const fixtureRepo = path.join(root, 'fixtures', 'sfdx-repo');
   const { stdout } = await execFileAsync('node', ['bin/sf-lwc.js', 'ls', '--from', fixtureRepo], { cwd: root });
-  assert.match(stdout, /- dataTable@1\.0\.0/);
-  assert.match(stdout, /- modal@1\.0\.0/);
+  assert.match(stdout, /- dataTable @1\.0\.0/);
+  assert.match(stdout, /- modal @1\.0\.0/);
 });
