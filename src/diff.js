@@ -130,7 +130,7 @@ export async function diff(name, options = {}) {
   const projectRoot = path.resolve(options.cwd || '.');
   const project = await findProject(projectRoot);
   const config = await readConfig(project.root);
-  const registry = options.from || config?.registry || process.env.SF_LWC_REGISTRY || '.';
+  const registry = options.from || config?.registry || process.env.SF_LWC_REGISTRY || project.root;
 
   const source = options.source || createSource(registry);
   const manifest = await loadManifest(source, name);

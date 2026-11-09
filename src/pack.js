@@ -298,6 +298,11 @@ export async function pack(componentName, options = {}) {
         // Built-in standard entities (Account, Contact, User, etc.) exist across all orgs natively
         continue;
       } else {
+        if (current.depth + 1 > maxDepth) {
+          log(`   ⚠️ Reached maximum dependency depth (${maxDepth}). Skipping deeper traversal for ${refName}.`);
+          continue;
+        }
+
         if (!discoveredByType.has(refType)) {
           discoveredByType.set(refType, new Set());
         }
@@ -306,11 +311,7 @@ export async function pack(componentName, options = {}) {
         // Recursively traverse dependencies if the handler allows it
         const handler = METADATA_REGISTRY[refType];
         if (handler && handler.canRecurse && refId && !visitedIds.has(refId)) {
-          if (current.depth < maxDepth) {
-            queue.push({ id: refId, name: refName, type: refType, depth: current.depth + 1 });
-          } else {
-            log(`   ⚠️ Reached maximum dependency depth (${maxDepth}). Skipping deeper traversal for ${refName}.`);
-          }
+          queue.push({ id: refId, name: refName, type: refType, depth: current.depth + 1 });
         }
       }
     }

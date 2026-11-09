@@ -79,7 +79,20 @@ export async function doctor(options = {}) {
       message: 'No lockfile present (0 components installed).'
     });
   } else {
-    const lock = await readLock(project.root);
+    let lock;
+    try {
+      const lockRaw = await readFile(path.join(project.root, LOCK_FILE), 'utf8');
+      lock = JSON.parse(lockRaw);
+    } catch (err) {
+      allOk = false;
+      checks.push({
+        name: 'sf-lwc.lock.json',
+        status: 'fail',
+        message: `Corrupted lockfile ${LOCK_FILE}: ${err.message}`
+      });
+      return { ok: false, checks };
+    }
+
     const components = Object.entries(lock.components || {});
     checks.push({
       name: 'sf-lwc.lock.json',
@@ -125,16 +138,18 @@ export async function doctor(options = {}) {
           message: 'CustomLabels.labels-meta.xml is well-formed.'
         });
       } else {
+        allOk = false;
         checks.push({
           name: 'CustomLabels',
-          status: 'warn',
-          message: 'CustomLabels.labels-meta.xml may be malformed.'
+          status: 'fail',
+          message: 'CustomLabels.labels-meta.xml is malformed (missing root tags).'
         });
       }
     } catch (err) {
+      allOk = false;
       checks.push({
         name: 'CustomLabels',
-        status: 'warn',
+        status: 'fail',
         message: `Could not read CustomLabels: ${err.message}`
       });
     }
