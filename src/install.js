@@ -57,9 +57,10 @@ export async function install({ source, manifests, project, overwrite = false, d
 
     lock.components[m.name] = {
       version: m.version,
-      files: written.length ? written : prev?.files ?? [],
+      files: Array.from(new Set([...(m.files ?? []), ...(written ?? [])])),
       labels: (m.labels ?? []).map((l) => l.fullName),
-      dependencies: m.dependencies ?? []
+      dependencies: m.dependencies ?? [],
+      ...(m.unmanifested ? { unmanifested: true } : {})
     };
     for (const n of m.notes ?? []) notes.push(`[${m.name}] ${n}`);
   }

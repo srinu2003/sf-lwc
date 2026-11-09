@@ -97,9 +97,12 @@ export async function loadManifest(source, name) {
         const pkgPrefix = prefix.replace(/\/lwc$/, '');
 
         // Check whether component has an explicit frozen manifest
+        const kebabName = toKebabCase(name);
         const candidateManifestPaths = [
           path.join(source.root, '.sf-lwc', `${name}.json`),
+          ...(kebabName !== name ? [path.join(source.root, '.sf-lwc', `${kebabName}.json`)] : []),
           path.join(source.root, 'components', name, 'manifest.json'),
+          ...(kebabName !== name ? [path.join(source.root, 'components', kebabName, 'manifest.json')] : []),
           path.join(compDir, 'manifest.json'),
           path.join(compDir, '.sf-lwc.json')
         ];
@@ -158,6 +161,7 @@ export async function loadManifest(source, name) {
           files: [...new Set(files)],
           dependencies: [],
           labels: [],
+          unmanifested: true,
           _rawPrefix: `${prefix}/${name}`,
           _packageDefault: pkgPrefix
         };

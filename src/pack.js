@@ -240,8 +240,9 @@ export async function pack(componentName, options = {}) {
   const log = options.log || (options.json ? () => {} : console.log);
 
   log(`\n🔍 [1/5] Resolving root bundle for '${componentName}'${targetOrg ? ` in org '${targetOrg}'` : ''}...`);
+  const sanitizedComponentName = componentName.replace(/'/g, "\\'");
   const lwcRecords = queryTooling(
-    `SELECT Id, DeveloperName, ApiVersion FROM LightningComponentBundle WHERE DeveloperName = '${componentName}'`,
+    `SELECT Id, DeveloperName, ApiVersion FROM LightningComponentBundle WHERE DeveloperName = '${sanitizedComponentName}'`,
     targetOrg
   );
 
@@ -259,7 +260,8 @@ export async function pack(componentName, options = {}) {
 
   log(`\n🕸️ [2/5] Traversing dependency graph dynamically from Tooling API...`);
   const visitedIds = new Set();
-  const queue = [{ id: bundleId, name: componentName, type: 'LightningComponentBundle' }];
+  const maxDepth = options.maxDepth ?? 5;
+  const queue = [{ id: bundleId, name: componentName, type: 'LightningComponentBundle', depth: 0 }];
 
   const discoveredByType = new Map();
   const discoveredLabels = new Set();
@@ -271,7 +273,7 @@ export async function pack(componentName, options = {}) {
     visitedIds.add(current.id);
 
     const depRecords = queryTooling(
-      `SELECT MetadataComponentName, MetadataComponentType, RefMetadataComponentId, RefMetadataComponentName, RefMetadataComponentType FROM MetadataComponentDependency WHERE MetadataComponentId = '${current.id}'`,
+      `SELECT MetadataComponentName, MetadataComponentType, RefMetadataComponentId, RefMetadataComponentName, RefMetadataComponentType, RefMetadataComponentNamespace FROM MetadataComponentDependency WHERE MetadataComponentId = '${current.id}'`,
       targetOrg
     );
 
@@ -279,6 +281,12 @@ export async function pack(componentName, options = {}) {
       const refName = dep.RefMetadataComponentName;
       const refType = dep.RefMetadataComponentType;
       const refId = dep.RefMetadataComponentId;
+      const refNamespace = dep.RefMetadataComponentNamespace;
+
+      // Filter out system and platform namespaces
+      if (refNamespace && ['lightning', 'system'].includes(refNamespace.toLowerCase())) {
+        continue;
+      }
 
       log(`   -> ${current.name} (${current.type}) depends on ${refName} (${refType})`);
       if (!dependencyTree[current.name]) dependencyTree[current.name] = [];
@@ -298,7 +306,11 @@ export async function pack(componentName, options = {}) {
         // Recursively traverse dependencies if the handler allows it
         const handler = METADATA_REGISTRY[refType];
         if (handler && handler.canRecurse && refId && !visitedIds.has(refId)) {
-          queue.push({ id: refId, name: refName, type: refType });
+          if (current.depth < maxDepth) {
+            queue.push({ id: refId, name: refName, type: refType, depth: current.depth + 1 });
+          } else {
+            log(`   ⚠️ Reached maximum dependency depth (${maxDepth}). Skipping deeper traversal for ${refName}.`);
+          }
         }
       }
     }
