@@ -115,6 +115,8 @@ async function main() {
       registry: { type: 'string' },
       'target-org': { type: 'string', short: 'o' },
       output: { type: 'string', short: 'd' },
+      dist: { type: 'boolean', default: false },
+      'max-depth': { type: 'string' },
       overwrite: { type: 'boolean', short: 'w', default: false },
       'dry-run': { type: 'boolean', default: false },
       force: { type: 'boolean', default: false },
@@ -417,6 +419,8 @@ async function main() {
     await pack(componentName, {
       targetOrg: values['target-org'],
       output: values.output,
+      dist: values.dist,
+      maxDepth: values['max-depth'] ? parseInt(values['max-depth'], 10) : undefined,
       overwrite: values.overwrite,
       dryRun: values['dry-run'],
       json: values.json,

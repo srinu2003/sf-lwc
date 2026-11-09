@@ -37,6 +37,7 @@
       "type": "array", "items": { "type": "string" },
       "description": "Manual steps printed after install (permission sets, objects, fields, etc.)."
     },
+    "unmanifested": { "type": "boolean" },
     "_rawPrefix": { "type": "string" },
     "_packageDefault": { "type": "string" }
   }
