@@ -101,8 +101,6 @@ export async function loadManifest(source, name) {
         const candidateManifestPaths = [
           path.join(source.root, '.sf-lwc', `${name}.json`),
           ...(kebabName !== name ? [path.join(source.root, '.sf-lwc', `${kebabName}.json`)] : []),
-          path.join(source.root, 'components', name, 'manifest.json'),
-          ...(kebabName !== name ? [path.join(source.root, 'components', kebabName, 'manifest.json')] : []),
           path.join(compDir, 'manifest.json'),
           path.join(compDir, '.sf-lwc.json')
         ];
@@ -218,9 +216,10 @@ export async function loadManifest(source, name) {
 
           // Check if remote has explicit frozen manifest
           let packedManifest = null;
+          const kebabName = toKebabCase(name);
           const candidateRemotePaths = [
             `.sf-lwc/${name}.json`,
-            `components/${name}/manifest.json`,
+            ...(kebabName !== name ? [`.sf-lwc/${kebabName}.json`] : []),
             `${prefix}/${name}/manifest.json`
           ];
 
