@@ -219,7 +219,7 @@ test('LwcAdd programmatic execution supports multiple space-separated and comma-
     assert.deepEqual(commaNames.map(n => n.toLowerCase().replace(/[-_]/g, '')), ['modal', 'toastutils']);
   } finally {
     process.chdir(prevCwd);
-    fs.rmSync(tmpProject, { recursive: true, force: true });
+    fs.rmSync(tmpProject, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });
 
@@ -259,6 +259,6 @@ test('sf lwc add modal --dry-run --json via CLI produces clean JSON without stdo
     throw err;
   } finally {
     process.exitCode = prevExitCode;
-    fs.rmSync(tmpProject, { recursive: true, force: true });
+    fs.rmSync(tmpProject, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });

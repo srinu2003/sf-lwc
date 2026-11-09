@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import path from 'node:path';
 import { parseArgs } from 'node:util';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
@@ -141,6 +142,9 @@ async function main() {
   if ((cmd === 'pack' || cmd === 'export') && !names.length) {
     throw new Error('Specify a component name to pack, e.g. sf-lwc pack myComponent');
   }
+  if (cmd === 'diff' && !names.length) {
+    throw new Error('Specify a component name to diff, e.g. sf-lwc diff <component>');
+  }
   if (['remove', 'rm'].includes(cmd) && !names.length) {
     throw new Error(`Specify at least one component, e.g. sf-lwc ${cmd} data-table`);
   }
@@ -214,6 +218,21 @@ async function main() {
   }
 
   if (cmd === 'init') {
+    const defaultRegistry = 'srinu2003/sf-lwc@main';
+    const registry = values.from ?? values.registry ?? process.env.SF_LWC_REGISTRY ?? defaultRegistry;
+
+    if (values.json) {
+      await init({
+        project,
+        registry,
+        force: values.force,
+        dryRun: values['dry-run'],
+        log: () => {}
+      });
+      console.log(JSON.stringify({ ok: true, configPath: path.join(project.root, 'sf-lwc.json'), registry, dryRun: values['dry-run'] }, null, 2));
+      return;
+    }
+
     if (isDisplayTty) {
       p.intro(pc.bgCyan(pc.black(' sf-lwc init ')));
       spinner.start('Initializing project configuration...');
@@ -221,8 +240,6 @@ async function main() {
       console.log(`Project:  ${project.root}\n`);
     }
 
-    const defaultRegistry = 'srinu2003/sf-lwc@main';
-    const registry = values.from ?? values.registry ?? process.env.SF_LWC_REGISTRY ?? defaultRegistry;
     await init({
       project,
       registry,
@@ -241,6 +258,18 @@ async function main() {
   }
 
   if (cmd === 'remove' || cmd === 'rm') {
+    if (values.json) {
+      await remove({
+        names,
+        project,
+        dryRun: values['dry-run'],
+        force: values.force,
+        log: () => {}
+      });
+      console.log(JSON.stringify({ ok: true, removed: names, dryRun: values['dry-run'] }, null, 2));
+      return;
+    }
+
     if (isDisplayTty) {
       p.intro(pc.bgCyan(pc.black(' sf-lwc remove ')));
       spinner.start(`Verifying dependencies and removing ${names.join(', ')}...`);
@@ -464,6 +493,11 @@ async function main() {
 
     const components = await listComponents(source, spec);
 
+    if (values.json) {
+      console.log(JSON.stringify(components, null, 2));
+      return;
+    }
+
     if (isDisplayTty) {
       spinner.stop(`Discovered ${pc.bold(pc.green(components.length))} component(s) in ${pc.cyan(source.label)}`);
 
@@ -523,6 +557,31 @@ async function main() {
         p.cancel('No components selected.');
         return;
       }
+    }
+
+    if (values.json) {
+      const manifests = await resolve(source, targetNames);
+      const notes = await install({
+        source,
+        manifests,
+        project,
+        overwrite: values.overwrite,
+        dryRun: values['dry-run'],
+        log: () => {}
+      });
+      console.log(
+        JSON.stringify(
+          {
+            ok: true,
+            installed: manifests.map((m) => m.name),
+            dryRun: values['dry-run'],
+            notes
+          },
+          null,
+          2
+        )
+      );
+      return;
     }
 
     if (isDisplayTty) {
