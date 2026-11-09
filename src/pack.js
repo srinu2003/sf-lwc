@@ -230,9 +230,9 @@ export async function pack(componentName, options = {}) {
   const registryName = options.registryName || toKebabCase(componentName);
   const destDir = options.destDir || options.output
     ? path.resolve(projectRoot, options.destDir || options.output)
-    : path.join(projectRoot, 'components', registryName);
+    : null;
 
-  if (fs.existsSync(destDir) && !options.overwrite && !options.dryRun) {
+  if (destDir && fs.existsSync(destDir) && !options.overwrite && !options.dryRun) {
     throw new Error(`Destination directory "${destDir}" already exists. Use -w / --overwrite to replace.`);
   }
 
@@ -373,27 +373,37 @@ export async function pack(componentName, options = {}) {
     manifest.notes = options.notes;
   }
 
-  log(`\n📦 [4/5] ${options.dryRun ? '[dry-run] Would package' : 'Packaging'} component into '${destDir}'...`);
-  const filesDest = path.join(destDir, 'files');
+  if (destDir) {
+    log(`\n📦 [4/5] ${options.dryRun ? '[dry-run] Would package' : 'Packaging'} component into '${destDir}'...`);
+    const filesDest = path.join(destDir, 'files');
 
+    if (!options.dryRun) {
+      if (fs.existsSync(destDir)) {
+        fs.rmSync(destDir, { recursive: true, force: true });
+      }
+      fs.mkdirSync(filesDest, { recursive: true });
+
+      for (const rel of filesArray) {
+        const srcPath = path.join(packageDefault, rel);
+        const targetPath = path.join(filesDest, rel);
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        fs.copyFileSync(srcPath, targetPath);
+      }
+      log(`   Packaged ${filesArray.length} total files.`);
+
+      const manifestPath = path.join(destDir, 'manifest.json');
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+      log(`   wrote manifest.json`);
+    } else {
+      log(`   [dry-run] Would package ${filesArray.length} total files.`);
+      log(`   [dry-run] Would write manifest.json`);
+    }
+  } else {
+    log(`\n📦 [4/5] ${options.dryRun ? '[dry-run] Would save manifest to' : 'Saving manifest to'} '.sf-lwc/${registryName}.json'...`);
+  }
+
+  // Always write sidecar manifest in .sf-lwc
   if (!options.dryRun) {
-    if (fs.existsSync(destDir)) {
-      fs.rmSync(destDir, { recursive: true, force: true });
-    }
-    fs.mkdirSync(filesDest, { recursive: true });
-
-    for (const rel of filesArray) {
-      const srcPath = path.join(packageDefault, rel);
-      const targetPath = path.join(filesDest, rel);
-      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-      fs.copyFileSync(srcPath, targetPath);
-    }
-    log(`   Packaged ${filesArray.length} total files.`);
-
-    const manifestPath = path.join(destDir, 'manifest.json');
-    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-    log(`   wrote manifest.json`);
-
     try {
       const dotSfLwcDir = path.join(projectRoot, '.sf-lwc');
       if (!fs.existsSync(dotSfLwcDir)) fs.mkdirSync(dotSfLwcDir, { recursive: true });
@@ -401,10 +411,12 @@ export async function pack(componentName, options = {}) {
       if (registryName !== componentName) {
         fs.writeFileSync(path.join(dotSfLwcDir, `${componentName}.json`), JSON.stringify(manifest, null, 2) + '\n');
       }
-    } catch {}
-  } else {
-    log(`   [dry-run] Would package ${filesArray.length} total files.`);
-    log(`   [dry-run] Would write manifest.json`);
+      if (!destDir) {
+        log(`   wrote .sf-lwc/${registryName}.json (files stay in standard SFDX layout)`);
+      }
+    } catch (e) {
+      log(`   ⚠️ Failed to write .sf-lwc manifest: ${e.message}`);
+    }
   }
 
   log(`\n🎉 [5/5] Successfully ${options.dryRun ? 'inspected (dry-run)' : 'exported'} '${registryName}'!`);

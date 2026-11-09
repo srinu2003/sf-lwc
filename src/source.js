@@ -77,11 +77,6 @@ export function createSource(rawSpec) {
       read,
       readFile: read,
       async readComponentFile(manifest, rel) {
-        const bundlePath = path.join(root, 'components', manifest.name, 'files', rel);
-        if (fs.existsSync(bundlePath)) {
-          return readFile(bundlePath);
-        }
-
         if (rel.startsWith('lwc/')) {
           const rawPrefix = manifest._rawPrefix || `force-app/main/default/lwc/${manifest.name}`;
           const subPath = rel.startsWith(`lwc/${manifest.name}/`)
@@ -198,10 +193,6 @@ export function createSource(rawSpec) {
       return res.json();
     },
     async readComponentFile(manifest, rel) {
-      try {
-        return await this.read(`components/${manifest.name}/files/${rel}`);
-      } catch {}
-
       if (rel.startsWith('lwc/')) {
         const rawPrefix = manifest._rawPrefix || `force-app/main/default/lwc/${manifest.name}`;
         const subPath = rel.startsWith(`lwc/${manifest.name}/`)

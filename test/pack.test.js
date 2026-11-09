@@ -258,6 +258,31 @@ test('pack traces dependency graph, ignores standard entities, and emits valid m
   }
 });
 
+test('pack defaults to .sf-lwc sidecar and creates zero extra components/ folders', async () => {
+  const { tmpProject, pkgDefault } = setupMockProject();
+
+  try {
+    const mockQueryToolingApi = (query) => {
+      if (query.includes('FROM LightningComponentBundle WHERE DeveloperName')) {
+        return [{ Id: '0Rb000000000001', DeveloperName: 'sampleWidget', ApiVersion: 62.0 }];
+      }
+      return [];
+    };
+
+    const result = await pack('sampleWidget', {
+      projectRoot: tmpProject,
+      packageDefault: pkgDefault,
+      queryToolingApi: mockQueryToolingApi
+    });
+
+    assert.ok(fs.existsSync(path.join(tmpProject, '.sf-lwc', 'sample-widget.json')));
+    assert.ok(fs.existsSync(path.join(tmpProject, '.sf-lwc', 'sampleWidget.json')));
+    assert.equal(fs.existsSync(path.join(tmpProject, 'components')), false);
+  } finally {
+    fs.rmSync(tmpProject, { recursive: true, force: true });
+  }
+});
+
 test('pack honors --dry-run and does not write files to disk', async () => {
   const { tmpProject, pkgDefault } = setupMockProject();
 
