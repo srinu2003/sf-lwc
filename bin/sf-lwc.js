@@ -308,7 +308,7 @@ async function main() {
 
   if (cmd === 'diff') {
     if (!names.length) {
-      throw new Error('Specify a component name to diff, e.g. sf-lwc diff modal');
+      throw new Error('Specify a component name to diff, e.g. sf-lwc diff <component>');
     }
     const componentName = names[0];
 
