@@ -101,7 +101,7 @@ export function formatComponentList(components) {
   if (!components.length) return 'No components found.';
   return components
     .map((component) => {
-      const lines = [`- ${component.name}@${component.version}`];
+      const lines = [`- ${component.name} @${component.version}`];
       if (component.description) lines.push(`  ${component.description}`);
       lines.push(`  dependencies: ${component.dependencies.length ? component.dependencies.join(', ') : 'none'}`);
       return lines.join('\n');

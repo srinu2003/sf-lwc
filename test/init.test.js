@@ -101,8 +101,8 @@ test('cli list and add commands pick up registry from sf-lwc.json without --from
     ['bin/sf-lwc.js', 'list', '--cwd', projectRoot],
     { cwd: root, env: { ...process.env, SF_LWC_REGISTRY: '' } }
   );
-  assert.match(listOut, /- dataTable@1\.0\.0/);
-  assert.match(listOut, /- toastUtils@1\.0\.0/);
+  assert.match(listOut, /- dataTable @1\.0\.0/);
+  assert.match(listOut, /- toastUtils @1\.0\.0/);
 
   // Add component without --from or env var
   const { stdout: addOut } = await execFileAsync(
