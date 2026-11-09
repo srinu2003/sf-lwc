@@ -1,4 +1,5 @@
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
+import { Args } from '@oclif/core';
 import { Messages, SfProject, SfError } from '@salesforce/core';
 // @ts-ignore
 import { createSource } from 'sf-lwc/source.js';
@@ -22,6 +23,14 @@ export default class LwcList extends SfCommand<LwcListResult> {
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
   public static readonly aliases = ['lwc:ls'];
+  public static readonly strict = false;
+
+  public static readonly args = {
+    source: Args.string({
+      description: 'Upstream GitHub repository or local path',
+      required: false,
+    }),
+  };
 
   public static readonly flags = {
     from: Flags.string({
@@ -31,7 +40,7 @@ export default class LwcList extends SfCommand<LwcListResult> {
   };
 
   public async run(): Promise<LwcListResult> {
-    const { flags } = await this.parse(LwcList);
+    const { flags, args } = await this.parse(LwcList);
 
     let cwd = process.cwd();
     try {
@@ -42,7 +51,7 @@ export default class LwcList extends SfCommand<LwcListResult> {
     }
 
     const config = await readConfig(cwd).catch(() => null);
-    const spec = flags.from || config?.registry || process.env.SF_LWC_REGISTRY || 'srinu2003/sf-lwc@main';
+    const spec = flags.from || args.source || config?.registry || process.env.SF_LWC_REGISTRY || 'srinu2003/sf-lwc@main';
 
     this.spinner.start(`Discovering components from ${spec}`);
 
