@@ -150,7 +150,7 @@
           <div class="cmd-row">
             <div class="cmd-sig"><h3>sf-lwc add [source] [component...]</h3></div>
             <div class="cmd-body">
-              <p>Installs components and companion Apex/labels, updating <code>sf-lwc.lock.json</code>. Install directly by name (<code>sf-lwc add dataTable</code>), specify an upstream repository (<code>sf-lwc add owner/repo component</code>), or omit names to open the interactive terminal picker.</p>
+              <p>Installs components and companion Apex/labels, updating <code>sf-lwc.lock.json</code>. Specify an upstream repository (<code>sf-lwc add owner/repo [component]</code>) or omit the source to pull from your project's configured registry in <code>sf-lwc.json</code> (e.g. <code>sf-lwc add dataTable</code>). In an interactive terminal, omit component names to launch the multi-select picker.</p>
               <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc add dataTable</code><button class="btn-copy" type="button" data-copy="sf-lwc add dataTable">Copy</button></div>
             </div>
           </div>
@@ -158,7 +158,7 @@
           <div class="cmd-row">
             <div class="cmd-sig"><h3>sf-lwc list [source]</h3></div>
             <div class="cmd-body">
-              <p>Lists available components from a remote GitHub repository or local SFDX project without touching GitHub REST API quota. (Alias: <code>ls</code>)</p>
+              <p>Lists available components from a remote GitHub repository or local SFDX project without touching GitHub REST API quota. Omit source to query the project's configured registry. (Alias: <code>ls</code>)</p>
               <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc list</code><button class="btn-copy" type="button" data-copy="sf-lwc list">Copy</button></div>
             </div>
           </div>
@@ -200,6 +200,36 @@
             <div class="cmd-body">
               <p>Queries the Salesforce Tooling API across Apex, Labels, and child LWCs, exporting into clean <code>.sf-lwc/</code> sidecars. (Alias: <code>export</code>)</p>
               <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc pack myComponent -o myOrg</code><button class="btn-copy" type="button" data-copy="sf-lwc pack myComponent -o myOrg">Copy</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cli-flags-wrap">
+          <h3 class="cli-flags-title">Common flags</h3>
+          <div class="cli-flags-grid">
+            <div class="cli-flag">
+              <code>--dry-run</code>
+              <span>Simulates operations and previews written files or merged labels without modifying disk</span>
+            </div>
+            <div class="cli-flag">
+              <code>-w, --overwrite</code>
+              <span>Overwrites existing local component files during installation or update</span>
+            </div>
+            <div class="cli-flag">
+              <code>--force</code>
+              <span>Bypasses dependency blocking checks on remove, or overwrites config in init</span>
+            </div>
+            <div class="cli-flag">
+              <code>--json</code>
+              <span>Outputs machine-readable JSON for CI/CD runners and automated pipelines</span>
+            </div>
+            <div class="cli-flag">
+              <code>--from &lt;repo&gt;</code>
+              <span>Overrides registry or source repository (supports <code>owner/repo</code>, branch refs, or local paths)</span>
+            </div>
+            <div class="cli-flag">
+              <code>-o, --target-org</code>
+              <span>Target scratch org or sandbox username/alias for <code>sf-lwc pack</code> metadata discovery</span>
             </div>
           </div>
         </div>
@@ -302,9 +332,10 @@
                 <h3>Sidecar Manifests &amp; Dependency Safety</h3>
                 <span class="arch-module">src/resolve.js · src/remove.js</span>
               </div>
-              <p>Components declare their contracts in <code>.sf-lwc/&lt;name&gt;.json</code> sidecar manifest files (with automatic synthesis for raw, unmanifested DX bundles). This keeps source code pure DX while letting the CLI manage dependencies.</p>
+              <p>Components declare their metadata contracts in <code>.sf-lwc/&lt;name&gt;.json</code> sidecar manifests—companion JSON files storing component version, target API level, Apex companion classes, and Custom Labels without modifying Salesforce's native <code>*-meta.xml</code> descriptors. Keeping contracts in sidecars preserves native DX compatibility and zero-configuration deploys.</p>
               <ul>
-                <li><strong>Path traversal protection:</strong> <code>safePath()</code> validates all declared file paths. Leading slashes, Windows backslashes, and directory escapes (<code>..</code>) are rejected immediately.</li>
+                <li><strong>Unmanifested repository synthesis:</strong> When pulling from arbitrary GitHub repositories without <code>.sf-lwc/</code> manifests, the resolver auto-discovers component bundles across the DX project tree dynamically.</li>
+                <li><strong>Path traversal protection:</strong> <code>safePath()</code> validates all declared file paths. Leading slashes, Windows backslashes, and directory escapes (<code>..</code>) are rejected immediately before touching disk.</li>
                 <li><strong>Dependency graph safety:</strong> If component A depends on component B, running <code>sf-lwc remove B</code> is blocked by <code>findBlockingDependents()</code> with an error showing what would break, unless overridden with <code>--force</code>.</li>
                 <li><strong>Cycle detection:</strong> Recursive manifest resolution tracks visited nodes and stops cyclic dependency loops cleanly before writing to disk.</li>
               </ul>
