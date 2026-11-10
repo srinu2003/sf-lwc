@@ -1,10 +1,53 @@
 [
   {
+    "name": "dataTable",
+    "version": "1.0.0",
+    "description": "Dynamic SLDS data table with integrated Apex wire controller, safe field query limits, error toast handling, and custom label fallbacks.",
+    "apiVersion": "62.0",
+    "dependencies": [
+      "toast-utils"
+    ],
+    "labels": [
+      {
+        "fullName": "DataTable_NoRecords",
+        "value": "No records to display",
+        "shortDescription": "Label shown when query returns zero records"
+      },
+      {
+        "fullName": "DataTable_InvalidObject",
+        "value": "Invalid object or fields",
+        "shortDescription": "Exception error message for invalid object or field descriptions"
+      }
+    ],
+    "notes": [
+      "Include <c-data-table object-api-name='Account' columns={columns} limit-count={25}></c-data-table> in any Lightning page.",
+      "Automatically installs DataTableController.cls and test suite in force-app/main/default/classes/."
+    ],
+    "files": [
+      "lwc/dataTable/dataTable.html",
+      "lwc/dataTable/dataTable.js",
+      "lwc/dataTable/dataTable.js-meta.xml",
+      "classes/DataTableController.cls",
+      "classes/DataTableController.cls-meta.xml",
+      "classes/DataTableControllerTest.cls",
+      "classes/DataTableControllerTest.cls-meta.xml"
+    ],
+    "contents": {
+      "lwc/dataTable/dataTable.html": "<template>\n    <template lwc:if={isEmpty}>\n        <p class=\"slds-p-around_small\">{label.NO_RECORDS}</p>\n    </template>\n    <template lwc:else>\n        <lightning-datatable key-field=\"Id\" data={rows} columns={columns} hide-checkbox-column>\n        </lightning-datatable>\n    </template>\n</template>\n",
+      "lwc/dataTable/dataTable.js": "import { LightningElement, api, wire } from 'lwc';\nimport getRecords from '@salesforce/apex/DataTableController.getRecords';\nimport NO_RECORDS from '@salesforce/label/c.DataTable_NoRecords';\nimport { showToast } from 'c/toastUtils';\n\nexport default class DataTable extends LightningElement {\n    @api objectApiName;\n    @api columns = []; // [{ label: 'Name', fieldName: 'Name' }]\n    @api limitCount = 50;\n\n    label = { NO_RECORDS };\n    rows = [];\n\n    get fieldNames() {\n        return ['Id', ...this.columns.map((c) => c.fieldName)];\n    }\n\n    get isEmpty() {\n        return this.rows.length === 0;\n    }\n\n    @wire(getRecords, { objectApiName: '$objectApiName', fields: '$fieldNames', limitCount: '$limitCount' })\n    wiredRecords({ data, error }) {\n        if (data) {\n            this.rows = data;\n        } else if (error) {\n            this.rows = [];\n            showToast(this, 'Error', error.body?.message ?? 'Unable to load records', 'error');\n        }\n    }\n}\n",
+      "lwc/dataTable/dataTable.js-meta.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<LightningComponentBundle xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <apiVersion>62.0</apiVersion>\n    <isExposed>true</isExposed>\n    <masterLabel>Data Table</masterLabel>\n    <targets>\n        <target>lightning__AppPage</target>\n        <target>lightning__HomePage</target>\n        <target>lightning__RecordPage</target>\n    </targets>\n</LightningComponentBundle>\n",
+      "classes/DataTableController.cls": "public with sharing class DataTableController {\n    @AuraEnabled(cacheable=true)\n    public static List<SObject> getRecords(String objectApiName, List<String> fields, Integer limitCount) {\n        Schema.SObjectType sot = Schema.getGlobalDescribe().get(objectApiName);\n        if (sot == null || fields == null) {\n            throw new AuraHandledException(System.Label.DataTable_InvalidObject);\n        }\n        Map<String, Schema.SObjectField> fieldMap = sot.getDescribe().fields.getMap();\n        List<String> safeFields = new List<String>();\n        for (String f : fields) {\n            if (fieldMap.containsKey(f.toLowerCase())) {\n                safeFields.add(f);\n            }\n        }\n        if (safeFields.isEmpty()) {\n            throw new AuraHandledException(System.Label.DataTable_InvalidObject);\n        }\n        Integer lim = Math.min(limitCount == null ? 50 : limitCount, 200);\n        String soql = 'SELECT ' + String.join(safeFields, ', ') +\n            ' FROM ' + sot.getDescribe().getName() +\n            ' WITH USER_MODE LIMIT ' + lim;\n        return Database.query(soql);\n    }\n}\n",
+      "classes/DataTableController.cls-meta.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ApexClass xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <apiVersion>62.0</apiVersion>\n    <status>Active</status>\n</ApexClass>\n",
+      "classes/DataTableControllerTest.cls": "@IsTest\nprivate class DataTableControllerTest {\n    @IsTest\n    static void returnsRecords() {\n        insert new Account(Name = 'Acme');\n        List<SObject> rows = DataTableController.getRecords('Account', new List<String>{ 'Id', 'Name' }, 10);\n        Assert.areEqual(1, rows.size());\n    }\n\n    @IsTest\n    static void rejectsUnknownObject() {\n        try {\n            DataTableController.getRecords('Nope__c', new List<String>{ 'Id' }, 10);\n            Assert.fail('Expected exception');\n        } catch (AuraHandledException e) {\n            Assert.isNotNull(e);\n        }\n    }\n}\n",
+      "classes/DataTableControllerTest.cls-meta.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ApexClass xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <apiVersion>62.0</apiVersion>\n    <status>Active</status>\n</ApexClass>\n"
+    }
+  },
+  {
     "name": "modal",
     "version": "1.0.0",
     "description": "Accessible, SLDS-compliant modal dialog component with responsive sizing, slots, and keyboard navigation.",
     "apiVersion": "62.0",
-    "dependencies": {},
+    "dependencies": [],
     "labels": [
       {
         "fullName": "Modal_CloseTitle",
@@ -28,26 +71,28 @@
     ],
     "contents": {
       "lwc/modal/modal.html": "<template>\n    <template if:true={isOpen}>\n        <section role=\"dialog\" tabindex=\"-1\" aria-modal=\"true\" aria-labelledby={headerTitleId}\n            aria-describedby={modalContentId} class={computedModalClass}>\n            <div class=\"slds-modal__container\">\n                <template if:false={hideCloseButton}>\n                    <lightning-button-icon\n                        class=\"slds-modal__close\"\n                        icon-name=\"utility:close\"\n                        variant=\"bare-inverse\"\n                        size=\"large\"\n                        title={closeButtonTitle}\n                        alternative-text={closeButtonTitle}\n                        onclick={handleClose}>\n                    </lightning-button-icon>\n                </template>\n\n                <template if:false={hideHeader}>\n                    <header class={computedHeaderClass}>\n                        <slot name=\"header\">\n                            <template if:true={title}>\n                                <h2 id={headerTitleId} class=\"slds-modal__title slds-hyphenate\">{title}</h2>\n                            </template>\n                            <template if:true={tagline}>\n                                <p class=\"slds-m-top_x-small\">{tagline}</p>\n                            </template>\n                        </slot>\n                    </header>\n                </template>\n\n                <div id={modalContentId} class=\"slds-modal__content slds-p-around_medium\">\n                    <slot></slot>\n                </div>\n\n                <template if:false={hideFooter}>\n                    <footer class=\"slds-modal__footer\">\n                        <slot name=\"footer\">\n                            <button class=\"slds-button slds-button_neutral\" onclick={handleClose}>\n                                {cancelButtonLabel}\n                            </button>\n                        </slot>\n                    </footer>\n                </template>\n            </div>\n        </section>\n        <div class={computedBackdropClass} role=\"presentation\"></div>\n    </template>\n</template>\n",
-      "lwc/modal/modal.js": "import { LightningElement, api } from 'lwc';\r\nimport closeTitle from '@salesforce/label/c.Modal_CloseTitle';\r\nimport defaultCancel from '@salesforce/label/c.Modal_DefaultCancel';\r\n\r\nexport default class Modal extends LightningElement {\r\n  @api isOpen = false;\r\n  @api title = '';\r\n  @api tagline = '';\r\n  @api size = 'medium'; // small | medium | large | full\r\n  @api hideCloseButton = false;\r\n  @api hideHeader = false;\r\n  @api hideFooter = false;\r\n\r\n  labels = {\r\n    closeTitle,\r\n    defaultCancel\r\n  };\r\n\r\n  _uniqueId = Math.random().toString(36).substring(2, 9);\r\n  _keydownHandler = null;\r\n\r\n  connectedCallback() {\r\n    this._keydownHandler = this.handleKeyDown.bind(this);\r\n    window.addEventListener('keydown', this._keydownHandler);\r\n  }\r\n\r\n  disconnectedCallback() {\r\n    if (this._keydownHandler) {\r\n      window.removeEventListener('keydown', this._keydownHandler);\r\n    }\r\n  }\r\n\r\n  get headerTitleId() {\r\n    return `modal-heading-${this._uniqueId}`;\r\n  }\r\n\r\n  get modalContentId() {\r\n    return `modal-content-${this._uniqueId}`;\r\n  }\r\n\r\n  get closeButtonTitle() {\r\n    return this.labels.closeTitle || 'Close';\r\n  }\r\n\r\n  get cancelButtonLabel() {\r\n    return this.labels.defaultCancel || 'Cancel';\r\n  }\r\n\r\n  get computedModalClass() {\r\n    const classes = ['slds-modal', 'slds-fade-in-open'];\r\n    if (this.size === 'small') classes.push('slds-modal_small');\r\n    else if (this.size === 'large') classes.push('slds-modal_large');\r\n    else if (this.size === 'full') classes.push('slds-modal_full');\r\n    else classes.push('slds-modal_medium');\r\n    return classes.join(' ');\r\n  }\r\n\r\n  get computedBackdropClass() {\r\n    return 'slds-backdrop slds-backdrop_open';\r\n  }\r\n\r\n  get computedHeaderClass() {\r\n    const classes = ['slds-modal__header'];\r\n    if (!this.title && !this.tagline) {\r\n      classes.push('slds-modal__header_empty');\r\n    }\r\n    return classes.join(' ');\r\n  }\r\n\r\n  handleKeyDown(event) {\r\n    if (this.isOpen && event.key === 'Escape') {\r\n      event.stopPropagation();\r\n      this.handleClose();\r\n    }\r\n  }\r\n\r\n  handleClose() {\r\n    this.dispatchEvent(new CustomEvent('close'));\r\n  }\r\n}\r\n",
-      "lwc/modal/modal.css": ":host {\r\n  --slds-c-modal-radius-border: 0.25rem;\r\n}\r\n\r\n.slds-modal__content {\r\n  overflow-y: auto;\r\n}\r\n",
-      "lwc/modal/modal.js-meta.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<LightningComponentBundle xmlns=\"http://soap.sforce.com/2006/04/metadata\">\r\n    <apiVersion>62.0</apiVersion>\r\n    <isExposed>true</isExposed>\r\n    <masterLabel>Modal Dialog</masterLabel>\r\n    <description>Accessible, SLDS-compliant modal dialog component with responsive sizing, slots, and keyboard navigation.</description>\r\n    <targets>\r\n        <target>lightning__AppPage</target>\r\n        <target>lightning__RecordPage</target>\r\n        <target>lightning__HomePage</target>\r\n    </targets>\r\n</LightningComponentBundle>\r\n"
+      "lwc/modal/modal.js": "import { LightningElement, api } from 'lwc';\nimport closeTitle from '@salesforce/label/c.Modal_CloseTitle';\nimport defaultCancel from '@salesforce/label/c.Modal_DefaultCancel';\n\nexport default class Modal extends LightningElement {\n  @api isOpen = false;\n  @api title = '';\n  @api tagline = '';\n  @api size = 'medium'; // small | medium | large | full\n  @api hideCloseButton = false;\n  @api hideHeader = false;\n  @api hideFooter = false;\n\n  labels = {\n    closeTitle,\n    defaultCancel\n  };\n\n  _uniqueId = Math.random().toString(36).substring(2, 9);\n  _keydownHandler = null;\n\n  connectedCallback() {\n    this._keydownHandler = this.handleKeyDown.bind(this);\n    window.addEventListener('keydown', this._keydownHandler);\n  }\n\n  disconnectedCallback() {\n    if (this._keydownHandler) {\n      window.removeEventListener('keydown', this._keydownHandler);\n    }\n  }\n\n  get headerTitleId() {\n    return `modal-heading-${this._uniqueId}`;\n  }\n\n  get modalContentId() {\n    return `modal-content-${this._uniqueId}`;\n  }\n\n  get closeButtonTitle() {\n    return this.labels.closeTitle || 'Close';\n  }\n\n  get cancelButtonLabel() {\n    return this.labels.defaultCancel || 'Cancel';\n  }\n\n  get computedModalClass() {\n    const classes = ['slds-modal', 'slds-fade-in-open'];\n    if (this.size === 'small') classes.push('slds-modal_small');\n    else if (this.size === 'large') classes.push('slds-modal_large');\n    else if (this.size === 'full') classes.push('slds-modal_full');\n    else classes.push('slds-modal_medium');\n    return classes.join(' ');\n  }\n\n  get computedBackdropClass() {\n    return 'slds-backdrop slds-backdrop_open';\n  }\n\n  get computedHeaderClass() {\n    const classes = ['slds-modal__header'];\n    if (!this.title && !this.tagline) {\n      classes.push('slds-modal__header_empty');\n    }\n    return classes.join(' ');\n  }\n\n  handleKeyDown(event) {\n    if (this.isOpen && event.key === 'Escape') {\n      event.stopPropagation();\n      this.handleClose();\n    }\n  }\n\n  handleClose() {\n    this.dispatchEvent(new CustomEvent('close'));\n  }\n}\n",
+      "lwc/modal/modal.css": ":host {\n  --slds-c-modal-radius-border: 0.25rem;\n}\n\n.slds-modal__content {\n  overflow-y: auto;\n}\n",
+      "lwc/modal/modal.js-meta.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<LightningComponentBundle xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <apiVersion>62.0</apiVersion>\n    <isExposed>true</isExposed>\n    <masterLabel>Modal Dialog</masterLabel>\n    <description>Accessible, SLDS-compliant modal dialog component with responsive sizing, slots, and keyboard navigation.</description>\n    <targets>\n        <target>lightning__AppPage</target>\n        <target>lightning__RecordPage</target>\n        <target>lightning__HomePage</target>\n    </targets>\n</LightningComponentBundle>\n"
     }
   },
   {
     "name": "toast-utils",
     "version": "1.0.0",
-    "description": "Tiny helper for showing toast messages from any LWC.",
+    "description": "Utility module wrapping ShowToastEvent with clean helper methods for dispatching toast notifications across components.",
     "apiVersion": "62.0",
-    "dependencies": {},
+    "dependencies": [],
     "labels": [],
-    "notes": [],
+    "notes": [
+      "Import { showToast } from 'c/toastUtils'; and invoke showToast(this, 'Success', 'Action completed', 'success');"
+    ],
     "files": [
       "lwc/toastUtils/toastUtils.js",
       "lwc/toastUtils/toastUtils.js-meta.xml"
     ],
     "contents": {
-      "lwc/toastUtils/toastUtils.js": "import { ShowToastEvent } from 'lightning/platformShowToastEvent';\r\n\r\nexport function showToast(component, title, message, variant = 'info') {\r\n    component.dispatchEvent(new ShowToastEvent({ title, message, variant }));\r\n}\r\n",
-      "lwc/toastUtils/toastUtils.js-meta.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<LightningComponentBundle xmlns=\"http://soap.sforce.com/2006/04/metadata\">\r\n    <apiVersion>62.0</apiVersion>\r\n    <isExposed>false</isExposed>\r\n</LightningComponentBundle>\r\n"
+      "lwc/toastUtils/toastUtils.js": "import { ShowToastEvent } from 'lightning/platformShowToastEvent';\n\nexport function showToast(component, title, message, variant = 'info') {\n    component.dispatchEvent(new ShowToastEvent({ title, message, variant }));\n}\n",
+      "lwc/toastUtils/toastUtils.js-meta.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<LightningComponentBundle xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n    <apiVersion>62.0</apiVersion>\n    <isExposed>false</isExposed>\n</LightningComponentBundle>\n"
     }
   }
 ]

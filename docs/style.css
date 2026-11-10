@@ -355,6 +355,31 @@ p code, .section-head code {
   color: var(--text-2);
 }
 
+.hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+.hero-badges .badge {
+  font-family: var(--font-mono);
+  font-size: 0.7812rem;
+  color: var(--text-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--r-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+}
+.hero-badges .badge-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 /* Terminal: stays deep navy in both themes */
 .terminal {
   --bg: #0f0f11;
@@ -491,6 +516,45 @@ p code, .section-head code {
 }
 .section-head p { margin-top: 0.625rem; color: var(--text-2); max-width: 62ch; }
 .section-head .result-count { margin-top: 0.375rem; font-size: 0.875rem; color: var(--text-3); min-height: 1.65em; }
+
+/* ---- Architecture Grid ------------------------------------------------ */
+.arch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.75rem;
+}
+.arch-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+.arch-card h3 {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+.arch-card p {
+  color: var(--text-2);
+  font-size: 0.9062rem;
+  line-height: 1.55;
+  margin: 0;
+}
+.arch-card code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--text);
+  background: var(--code-bg);
+  padding: 0.125rem 0.3125rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+}
 
 /* CLI commands: a reference list, not a card grid */
 .cmd-list { border-bottom: 0.0625rem solid var(--line); }
