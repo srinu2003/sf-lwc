@@ -194,14 +194,14 @@ export async function loadManifest(source, name) {
     for (const prefix of candidatePrefixes) {
       try {
         let entries = [];
-        if (typeof source.fetchApi === 'function') {
-          entries = await source.fetchApi(`contents/${prefix}/${name}`);
-        } else if (typeof source.getTree === 'function') {
+        if (typeof source.getTree === 'function') {
           const tree = await source.getTree();
           const prefixMatch = `${prefix}/${name}/`;
           entries = tree
             .filter((i) => i.path.startsWith(prefixMatch) && i.type === 'blob')
             .map((i) => ({ name: path.basename(i.path), type: 'file' }));
+        } else if (typeof source.fetchApi === 'function') {
+          entries = await source.fetchApi(`contents/${prefix}/${name}`);
         }
 
         if (Array.isArray(entries) && entries.length > 0) {
