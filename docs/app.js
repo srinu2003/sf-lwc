@@ -53,6 +53,18 @@
     'null undefined true false switch case break continue'
   ).split(' '));
 
+  const APEX_KEYWORDS = new Set((
+    'public private protected global with without sharing inherited class interface enum extends implements ' +
+    'static final abstract virtual override transient void new this super return if else switch when for while ' +
+    'do try catch finally throw break continue testmethod true false null ' +
+    'select from where limit and or not order by asc desc with user_mode insert update upsert delete undelete'
+  ).split(' '));
+
+  const APEX_TYPES = new Set((
+    'boolean integer double decimal long date datetime time string blob id object sobject list set map ' +
+    'database schema system test assert aurahandledexception pagereference lightningelement'
+  ).split(' '));
+
   function span(cls, text) {
     return '<span class="tk-' + cls + '">' + esc(text) + '</span>';
   }
@@ -108,6 +120,33 @@
     return out + esc(src.slice(last));
   }
 
+  function hlApex(src) {
+    const re = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|('(?:\\.|[^'\\\n])*')|(@[A-Za-z_]\w*)|(\b\d[\d_.]*\b)|([A-Za-z_$][\w$]*)(?=\s*\()|([A-Za-z_$][\w$]*)/g;
+    let out = '';
+    let last = 0;
+    let m;
+    while ((m = re.exec(src))) {
+      out += esc(src.slice(last, m.index));
+      if (m[1]) out += span('com', m[1]);
+      else if (m[2]) out += span('str', m[2]);
+      else if (m[3]) out += span('dec', m[3]);
+      else if (m[4]) out += span('num', m[4]);
+      else if (m[5]) {
+        const lower = m[5].toLowerCase();
+        if (APEX_KEYWORDS.has(lower)) out += span('kw', m[5]);
+        else if (APEX_TYPES.has(lower)) out += span('attr', m[5]);
+        else out += span('fn', m[5]);
+      } else if (m[6]) {
+        const lower = m[6].toLowerCase();
+        if (APEX_KEYWORDS.has(lower)) out += span('kw', m[6]);
+        else if (APEX_TYPES.has(lower)) out += span('attr', m[6]);
+        else out += esc(m[6]);
+      }
+      last = re.lastIndex;
+    }
+    return out + esc(src.slice(last));
+  }
+
   function hlCss(src) {
     const re = /(\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')|(@[\w-]+)|(--[\w-]+|[a-zA-Z-]+)(?=\s*:\s)|(#[0-9a-fA-F]{3,8}\b)|([.#]?[a-zA-Z_][\w-]*)|(-?\d*\.?\d+(?:px|rem|em|%|vh|vw|ms|s|deg|fr)?)/g;
     let out = '';
@@ -133,6 +172,7 @@
     if (name.endsWith('.html') || name.endsWith('.xml')) return hlMarkup(src);
     if (name.endsWith('.js')) return hlJs(src);
     if (name.endsWith('.css')) return hlCss(src);
+    if (name.endsWith('.cls') || name.endsWith('.trigger')) return hlApex(src);
     return esc(src);
   }
 
@@ -160,11 +200,12 @@
       );
     });
 
-    const depCount = Object.keys(comp.dependencies || {}).length;
+    const deps = Array.isArray(comp.dependencies) ? comp.dependencies : Object.keys(comp.dependencies || {});
+    const depCount = deps.length;
     if (depCount) {
       rows.push(
         '<li><span class="g" aria-hidden="true">+</span><span class="path"><span class="f">Dependencies</span></span>' +
-        '<span class="n">' + depCount + ' added</span></li>'
+        '<span class="n">' + depCount + ' added (' + esc(deps.join(', ')) + ')</span></li>'
       );
     }
     const labelCount = (comp.labels || []).length;
@@ -215,7 +256,7 @@
     const files = c.files || Object.keys(c.contents || {});
     const labels = c.labels || [];
     const notes = c.notes || [];
-    const deps = Object.keys(c.dependencies || {});
+    const deps = Array.isArray(c.dependencies) ? c.dependencies : Object.keys(c.dependencies || {});
 
     const depsHtml = deps.length
       ? '<p class="depends">Requires ' +
@@ -247,6 +288,35 @@
     const infoHtml = usageHtml || labelsHtml || filesHtml ? '<div class="info">' + usageHtml + labelsHtml + filesHtml + '</div>' : '';
     const installCmd = 'npx sf-lwc add ' + c.name;
 
+    let viewerHtml = '';
+    const contentKeys = Object.keys(c.contents || {});
+    if (contentKeys.length > 0) {
+      const firstFile = contentKeys[0];
+      const tabsHtml = contentKeys.map((file, idx) => {
+        const selected = idx === 0;
+        return (
+          '<button class="tab" type="button" role="tab" data-comp="' + esc(c.name) + '" data-file="' + esc(file) + '" ' +
+          'aria-selected="' + String(selected) + '" tabindex="' + (selected ? '0' : '-1') + '">' +
+          esc(baseName(file)) +
+          '</button>'
+        );
+      }).join('');
+
+      const initialCode = highlight(c.contents[firstFile] || '', firstFile);
+
+      viewerHtml = (
+        '<div class="viewer">' +
+          '<div class="viewer-bar">' +
+            '<div class="tabs" role="tablist" aria-label="Component source files">' +
+              tabsHtml +
+            '</div>' +
+            '<button class="btn-copy" type="button" data-copy-file="' + esc(c.name) + '">Copy file</button>' +
+          '</div>' +
+          '<pre><code>' + initialCode + '</code></pre>' +
+        '</div>'
+      );
+    }
+
     return (
       '<article class="comp" id="comp-' + esc(c.name) + '">' +
         '<header>' +
@@ -259,6 +329,7 @@
         '<div class="snippet comp-install"><span class="ps" aria-hidden="true">$</span><code>' + esc(installCmd) + '</code>' +
           '<button class="btn-copy" type="button" data-copy="' + esc(installCmd) + '">Copy</button></div>' +
         infoHtml +
+        viewerHtml +
       '</article>'
     );
   }
@@ -300,7 +371,7 @@
       },
       { rootMargin: '-12% 0px -78% 0px' }
     );
-    ['overview', 'cli-reference'].forEach((id) => { const el = document.getElementById(id); if (el) observer.observe(el); });
+    ['overview', 'architecture', 'cli-reference'].forEach((id) => { const el = document.getElementById(id); if (el) observer.observe(el); });
     $$('.comp').forEach((el) => observer.observe(el));
   }
 

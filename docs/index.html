@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>sf-lwc — Open-source Salesforce LWC registry and CLI</title>
-  <meta name="description" content="Copy accessible, production-tested SLDS components into your Salesforce DX project. Own your code, skip package locks.">
+  <meta name="description" content="Copy accessible, production-tested SLDS components and Apex dependencies into your Salesforce DX project. Zero runtime locks, zero GitHub rate limits.">
   <meta name="color-scheme" content="dark light">
   <script>
     // Set the theme before first paint so there is no flash.
@@ -74,6 +74,7 @@
           <h2>Guide</h2>
           <ul>
             <li><a href="#overview" class="active">Overview</a></li>
+            <li><a href="#architecture">Architecture</a></li>
             <li><a href="#cli-reference">CLI commands</a></li>
           </ul>
         </div>
@@ -107,8 +108,15 @@
         <h1>The shadcn/ui for Lightning Web Components</h1>
         <p class="lead">
           Copy accessible, production-tested SLDS components straight into your Salesforce DX project.
-          You own the code, there are no package locks, and dependencies are found for you.
+          You own the code, zero runtime lock-in, and full metadata dependency resolution.
         </p>
+
+        <div class="hero-badges">
+          <span class="badge"><span class="badge-dot" aria-hidden="true"></span>Zero REST rate limits</span>
+          <span class="badge"><span class="badge-dot" aria-hidden="true"></span>Interactive terminal picker</span>
+          <span class="badge"><span class="badge-dot" aria-hidden="true"></span>Apex &amp; label bundling</span>
+          <span class="badge"><span class="badge-dot" aria-hidden="true"></span>Pure Salesforce DX source</span>
+        </div>
 
         <div class="terminal" id="terminal">
           <div class="term-cmd">
@@ -124,49 +132,91 @@
         </div>
       </header>
 
+      <section id="architecture" class="section" aria-labelledby="arch-title">
+        <div class="section-head">
+          <h2 id="arch-title">Built for Salesforce DX</h2>
+          <p>Designed around the realities of Salesforce DX development: real Apex dependencies, Custom Labels, and zero API quota friction.</p>
+        </div>
+
+        <div class="arch-grid">
+          <div class="arch-card">
+            <h3>Zero REST Rate Limits</h3>
+            <p>Unauthenticated searches and component installs stream directly from GitHub Codeload tarballs and parse in-memory. <code>api.github.com</code> is never touched, preserving 100% of your 60 req/hr IP quota.</p>
+          </div>
+          <div class="arch-card">
+            <h3>Interactive Terminal UI</h3>
+            <p>Run <code>sf-lwc add &lt;source&gt;</code> without specifying components to open an interactive fuzzy multi-select selector powered by <code>@clack/prompts</code> with live previews.</p>
+          </div>
+          <div class="arch-card">
+            <h3>Full-Stack Metadata Bundling</h3>
+            <p>Doesn't stop at JavaScript and templates. Resolves and packages Apex controllers, unit test classes, and merges <code>&lt;labels&gt;</code> directly into <code>CustomLabels.labels-meta.xml</code>.</p>
+          </div>
+          <div class="arch-card">
+            <h3>Clean Sidecar Specification</h3>
+            <p>Component metadata lives in clean <code>.sf-lwc/&lt;name&gt;.json</code> sidecars. Enforces strict path traversal validation, lockfile ownership, and recursion depth protection.</p>
+          </div>
+        </div>
+      </section>
+
       <section id="cli-reference" class="section" aria-labelledby="cli-title">
         <div class="section-head">
           <h2 id="cli-title">CLI commands</h2>
-          <p>Six commands cover the whole lifecycle: set up, install, compare, update, check, and trace dependencies.</p>
+          <p>Eight commands cover the whole lifecycle: initialize, install, discover, compare, update, remove, inspect, and package.</p>
         </div>
 
         <div class="cmd-list">
           <div class="cmd-row">
             <div class="cmd-sig"><h3>sf-lwc init</h3></div>
             <div class="cmd-body">
-              <p>Writes the default registry spec to <code>sf-lwc.json</code> so local and team installs work the same way.</p>
+              <p>Writes the default registry spec and workspace settings to <code>sf-lwc.json</code> so team installs run consistently.</p>
               <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc init</code><button class="btn-copy" type="button" data-copy="sf-lwc init">Copy</button></div>
             </div>
           </div>
 
           <div class="cmd-row">
-            <div class="cmd-sig"><h3>sf-lwc add &lt;component&gt;</h3></div>
+            <div class="cmd-sig"><h3>sf-lwc add [source] [component...]</h3></div>
             <div class="cmd-body">
-              <p>Installs a component and its dependencies, merges Custom Labels, and updates <code>sf-lwc.lock.json</code>.</p>
-              <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc add &lt;component&gt;</code><button class="btn-copy" type="button" data-copy="sf-lwc add <component>">Copy</button></div>
+              <p>Installs components and resolves sub-dependencies (child LWCs, Apex controllers, labels), updating <code>sf-lwc.lock.json</code>. Omit component names to launch interactive multi-select.</p>
+              <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc add svierk/awesome-lwc-collection</code><button class="btn-copy" type="button" data-copy="sf-lwc add svierk/awesome-lwc-collection">Copy</button></div>
+            </div>
+          </div>
+
+          <div class="cmd-row">
+            <div class="cmd-sig"><h3>sf-lwc list [source]</h3></div>
+            <div class="cmd-body">
+              <p>Lists available components from a remote GitHub repository or local SFDX project without touching GitHub REST API quota. (Alias: <code>ls</code>)</p>
+              <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc list</code><button class="btn-copy" type="button" data-copy="sf-lwc list">Copy</button></div>
             </div>
           </div>
 
           <div class="cmd-row">
             <div class="cmd-sig"><h3>sf-lwc diff &lt;component&gt;</h3></div>
             <div class="cmd-body">
-              <p>Shows a unified, line-by-line diff between your customized copy and the upstream registry.</p>
-              <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc diff &lt;component&gt;</code><button class="btn-copy" type="button" data-copy="sf-lwc diff <component>">Copy</button></div>
+              <p>Displays a unified, line-by-line colored diff between your local customized copy and the upstream registry version.</p>
+              <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc diff dataTable</code><button class="btn-copy" type="button" data-copy="sf-lwc diff dataTable">Copy</button></div>
             </div>
           </div>
 
           <div class="cmd-row">
-            <div class="cmd-sig"><h3>sf-lwc update</h3></div>
+            <div class="cmd-sig"><h3>sf-lwc update [component...]</h3></div>
             <div class="cmd-body">
-              <p>Compares lockfile versions with the registry, then upgrades component files and labels safely.</p>
+              <p>Compares lockfile versions with upstream registry, then safely upgrades component files and Custom Labels (use <code>--all</code> to upgrade all).</p>
               <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc update --all</code><button class="btn-copy" type="button" data-copy="sf-lwc update --all">Copy</button></div>
+            </div>
+          </div>
+
+          <div class="cmd-row">
+            <div class="cmd-sig"><h3>sf-lwc remove &lt;component...&gt;</h3></div>
+            <div class="cmd-body">
+              <p>Safely removes an installed component and its files, checking dependency trees to prevent breaking dependent components (override with <code>--force</code>). (Alias: <code>rm</code>)</p>
+              <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc remove dataTable</code><button class="btn-copy" type="button" data-copy="sf-lwc remove dataTable">Copy</button></div>
             </div>
           </div>
 
           <div class="cmd-row">
             <div class="cmd-sig"><h3>sf-lwc doctor</h3></div>
             <div class="cmd-body">
-              <p>Checks the DX package root, registry connectivity, and that every file in the lockfile exists on disk.</p>
+              <p>Checks SFDX project root, configuration, registry reachability, lockfile integrity, and verifies that every tracked file exists on disk.</p>
               <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc doctor</code><button class="btn-copy" type="button" data-copy="sf-lwc doctor">Copy</button></div>
             </div>
           </div>
@@ -174,7 +224,7 @@
           <div class="cmd-row">
             <div class="cmd-sig"><h3>sf-lwc pack &lt;component&gt;</h3></div>
             <div class="cmd-body">
-              <p>Traces metadata dependencies through the Salesforce Tooling API across Apex, Labels, and child LWCs.</p>
+              <p>Inspects metadata dependencies through the Salesforce Tooling API across Apex, Labels, and child LWCs, exporting into clean <code>.sf-lwc/</code> sidecars. (Alias: <code>export</code>)</p>
               <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc pack myComponent -o myOrg</code><button class="btn-copy" type="button" data-copy="sf-lwc pack myComponent -o myOrg">Copy</button></div>
             </div>
           </div>
