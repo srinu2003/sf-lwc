@@ -623,6 +623,8 @@ p code, .section-head code {
   padding: 0.125rem 0.3125rem;
   border-radius: var(--r-sm);
   border: 1px solid var(--line);
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* Architecture Flow Diagram */
@@ -784,10 +786,44 @@ p code, .section-head code {
   border-radius: var(--r-sm);
   padding: 0.125rem 0.25rem;
 }
+@media (max-width: 768px) {
+  .arch-flow-wrap {
+    padding: 1.125rem 1rem;
+    overflow-x: visible;
+  }
+  .arch-flow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.625rem;
+    min-width: 0;
+  }
+  .flow-card {
+    width: 100%;
+    min-width: 0;
+  }
+  .flow-arrow {
+    transform: rotate(90deg);
+    padding: 0.25rem 0;
+  }
+}
+
 @media (max-width: 600px) {
   .arch-stage {
     grid-template-columns: 1fr;
-    gap: 0.5rem;
+    gap: 0.75rem;
+    padding: 1.25rem 1rem;
+  }
+  .cli-flags-wrap {
+    padding: 1.25rem 1rem;
+  }
+  .cli-flags-grid {
+    grid-template-columns: 1fr;
+  }
+  .prereq-card {
+    padding: 1.25rem 1rem;
+  }
+  .prereq-grid {
+    grid-template-columns: 1fr;
   }
 }
 
