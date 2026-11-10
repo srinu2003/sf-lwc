@@ -190,9 +190,10 @@
 
     const rows = [];
     (comp.files || []).forEach((f) => {
-      const i = f.lastIndexOf('/');
-      const dir = i >= 0 ? f.slice(0, i + 1) : '';
-      const file = i >= 0 ? f.slice(i + 1) : f;
+      const fullPath = 'force-app/main/default/' + f;
+      const i = fullPath.lastIndexOf('/');
+      const dir = i >= 0 ? fullPath.slice(0, i + 1) : '';
+      const file = i >= 0 ? fullPath.slice(i + 1) : fullPath;
       rows.push(
         '<li><span class="g" aria-hidden="true">+</span>' +
         '<span class="path"><span class="p">' + esc(dir) + '</span><span class="f">' + esc(file) + '</span></span>' +
@@ -314,7 +315,7 @@
             '</div>' +
             '<button class="btn-copy" type="button" data-copy-file="' + esc(c.name) + '">Copy file</button>' +
           '</div>' +
-          '<pre><code>' + initialCode + '</code></pre>' +
+          '<pre tabindex="0" role="tabpanel" aria-label="' + esc(c.name) + ' source code"><code>' + initialCode + '</code></pre>' +
         '</div>'
       );
     }

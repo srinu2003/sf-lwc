@@ -28,7 +28,7 @@
   --text-2: #a6a6ad;
   --text-3: #85858c;
   --accent: #1b96ff;
-  --accent-ink: #ffffff;
+  --accent-ink: #00162e;
   --accent-soft: rgba(27, 150, 255, 0.15);
   --mark-fg: #ffffff;
   --code-bg: #0f0f11;
@@ -242,7 +242,8 @@ p code, .section-head code {
 
 /* Nav */
 .nav { display: flex; flex-direction: column; gap: 1.375rem; flex: 1; }
-.nav-group h2 {
+.nav-group h2,
+.nav-group .nav-title {
   font-family: var(--font-sans);
   font-size: 0.8125rem;
   font-weight: 600;
@@ -721,11 +722,24 @@ p code, .section-head code {
   width: 2.25rem;
   height: 2.25rem;
   border-radius: var(--r-sm);
-  background: var(--accent-subtle);
+  background: var(--accent-soft);
   color: var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Accessibility utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .prereq-card h4 {
   font-family: var(--font-display);
