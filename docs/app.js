@@ -373,7 +373,7 @@
       },
       { rootMargin: '-12% 0px -78% 0px' }
     );
-    ['overview', 'architecture', 'cli-reference'].forEach((id) => { const el = document.getElementById(id); if (el) observer.observe(el); });
+    ['overview', 'cli-reference', 'architecture'].forEach((id) => { const el = document.getElementById(id); if (el) observer.observe(el); });
     $$('.comp').forEach((el) => observer.observe(el));
   }
 

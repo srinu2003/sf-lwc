@@ -74,8 +74,8 @@
           <h2>Guide</h2>
           <ul>
             <li><a href="#overview" class="active">Overview</a></li>
-            <li><a href="#architecture">Architecture</a></li>
             <li><a href="#cli-reference">CLI commands</a></li>
+            <li><a href="#architecture">Architecture</a></li>
           </ul>
         </div>
         <div class="nav-group">
@@ -132,32 +132,6 @@
           <div class="term-pick" id="heroPicker" role="group" aria-label="Preview another component"></div>
         </div>
       </header>
-
-      <section id="architecture" class="section" aria-labelledby="arch-title">
-        <div class="section-head">
-          <h2 id="arch-title">Built for Salesforce DX</h2>
-          <p>Designed around the realities of Salesforce DX development: real Apex dependencies, Custom Labels, and zero API quota friction.</p>
-        </div>
-
-        <div class="arch-grid">
-          <div class="arch-card">
-            <h3>Zero REST Rate Limits</h3>
-            <p>Unauthenticated searches and component installs stream directly from GitHub Codeload tarballs and parse in-memory. <code>api.github.com</code> is never touched, preserving 100% of your 60 req/hr IP quota.</p>
-          </div>
-          <div class="arch-card">
-            <h3>Interactive Terminal UI</h3>
-            <p>Run <code>sf-lwc add &lt;source&gt;</code> without specifying components to open an interactive fuzzy multi-select selector powered by <code>@clack/prompts</code> with live previews.</p>
-          </div>
-          <div class="arch-card">
-            <h3>Full-Stack Metadata Bundling</h3>
-            <p>Doesn't stop at JavaScript and templates. Resolves and packages Apex controllers, unit test classes, and merges <code>&lt;labels&gt;</code> directly into <code>CustomLabels.labels-meta.xml</code>.</p>
-          </div>
-          <div class="arch-card">
-            <h3>Clean Sidecar Specification</h3>
-            <p>Component metadata lives in clean <code>.sf-lwc/&lt;name&gt;.json</code> sidecars. Enforces strict path traversal validation, lockfile ownership, and recursion depth protection.</p>
-          </div>
-        </div>
-      </section>
 
       <section id="cli-reference" class="section" aria-labelledby="cli-title">
         <div class="section-head">
@@ -229,6 +203,154 @@
               <div class="snippet"><span class="ps" aria-hidden="true">$</span><code>sf-lwc pack myComponent -o myOrg</code><button class="btn-copy" type="button" data-copy="sf-lwc pack myComponent -o myOrg">Copy</button></div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section id="architecture" class="section" aria-labelledby="arch-title">
+        <div class="section-head">
+          <h2 id="arch-title">Project Architecture &amp; Internals</h2>
+          <p>A reference for contributors on how sf-lwc works under the hood—from zero-quota transport streaming to recursive dependency resolution and atomic DX file installs.</p>
+        </div>
+
+        <h3 class="arch-subhead">Execution Lifecycle</h3>
+        <p style="color: var(--text-2); max-width: 65ch; margin-bottom: 1rem;">When a user runs <code>sf-lwc add</code> or <code>sf lwc add</code>, the engine processes four distinct architectural stages:</p>
+
+        <div class="arch-stages">
+          <div class="arch-stage">
+            <span class="arch-num" aria-hidden="true">01</span>
+            <div class="arch-content">
+              <div class="arch-title-row">
+                <h3>Transport &amp; Zero-Rate-Limit Cache</h3>
+                <span class="arch-module">src/source.js</span>
+              </div>
+              <p>Resolves the target repository specification (<code>owner/repo[@ref]</code>, git URLs, or local directory paths) with zero unauthenticated REST API quota consumption.</p>
+              <ul>
+                <li><strong>Codeload Snapshot Streaming:</strong> Unauthenticated GitHub requests stream gzip tarballs from <code>codeload.github.com/{owner}/{repo}/tar.gz/{ref}</code> and parse archives in-memory via <code>parseTar()</code> into a virtual file tree (<code>_filesMap</code>). <code>api.github.com</code> is never contacted, keeping the user's 60 req/hr IP quota completely untouched.</li>
+                <li><strong>Native Git Clone Fallback:</strong> If codeload download fails (e.g., enterprise proxies), falls back to <code>git clone --depth 1</code> over standard Git HTTPS protocol.</li>
+                <li><strong>Local Source Inspection:</strong> Scans local directories for <code>sfdx-project.json</code> and indexes components directly from package directories.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="arch-stage">
+            <span class="arch-num" aria-hidden="true">02</span>
+            <div class="arch-content">
+              <div class="arch-title-row">
+                <h3>Resolution &amp; Manifest Engine</h3>
+                <span class="arch-module">src/resolve.js</span>
+              </div>
+              <p>Locates component manifests, normalizes names, and recursively traverses the dependency graph.</p>
+              <ul>
+                <li><strong>Manifest Discovery:</strong> Looks for explicit frozen manifests in <code>.sf-lwc/&lt;name&gt;.json</code> sidecars or synthesizes bundle manifests dynamically from standard SFDX directory layouts (<code>force-app/main/default/lwc/&lt;name&gt;</code>).</li>
+                <li><strong>Security &amp; Path Traversal Guard:</strong> The <code>validate()</code> and <code>safePath()</code> assertions enforce semantic version formatting, API versioning, and strictly disallow backslashes, leading slashes, and directory escaping (<code>..</code>).</li>
+                <li><strong>Graph Resolution &amp; Cycle Detection:</strong> Recursively walks child <code>dependencies</code>, detects cyclic dependencies, and produces an ordered installation queue.</li>
+                <li><strong>Name &amp; Case Normalization:</strong> Matches component identifiers across exact, case-insensitive, kebab-case (<code>toKebabCase</code>), and stripped formats via <code>matchComponentName</code>.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="arch-stage">
+            <span class="arch-num" aria-hidden="true">03</span>
+            <div class="arch-content">
+              <div class="arch-title-row">
+                <h3>DX Installation &amp; Non-Destructive Merging</h3>
+                <span class="arch-module">src/install.js · src/labels.js</span>
+              </div>
+              <p>Coordinates filesystem writes and integrates metadata into the destination Salesforce DX project.</p>
+              <ul>
+                <li><strong>Project Route Discovery:</strong> Inspects <code>sfdx-project.json</code> in the workspace to identify the target package directory (defaults to <code>force-app/main/default</code>).</li>
+                <li><strong>File Distribution:</strong> Writes LWC bundles to <code>lwc/&lt;name&gt;/</code> and Apex classes/tests to <code>classes/</code>.</li>
+                <li><strong>Custom Labels Merger (<code>src/labels.js</code>):</strong> Non-destructively parses <code>CustomLabels.labels-meta.xml</code>, detects existing <code>&lt;fullName&gt;</code> entries, and appends missing labels before <code>&lt;/CustomLabels&gt;</code> without overwriting existing labels or comments.</li>
+                <li><strong>Atomic Lockfile Persistence:</strong> Updates <code>sf-lwc.lock.json</code> with installed component names, versions, and every written file path for clean drift detection and audits.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="arch-stage">
+            <span class="arch-num" aria-hidden="true">04</span>
+            <div class="arch-content">
+              <div class="arch-title-row">
+                <h3>Dependency-Aware Lifecycle &amp; Removal</h3>
+                <span class="arch-module">src/remove.js · src/update.js · src/doctor.js</span>
+              </div>
+              <p>Protects project integrity during updates, diagnostics, and component removals.</p>
+              <ul>
+                <li><strong>Graph-Aware Removal:</strong> <code>src/remove.js</code> consults lockfile dependencies using <code>findBlockingDependents()</code>. If component A depends on component B, removing B is blocked with a descriptive error unless <code>--force</code> is provided.</li>
+                <li><strong>Lockfile Sync:</strong> Deleting the last installed component cleans up <code>sf-lwc.lock.json</code> cleanly.</li>
+                <li><strong>Diagnostics Suite (<code>src/doctor.js</code>):</strong> Verifies <code>sfdx-project.json</code> health, configuration validity, registry connectivity, and verifies that every file recorded in the lockfile exists on disk.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <h3 class="arch-subhead">Org Dependency Tracing &amp; Packaging</h3>
+        <div class="arch-card" style="margin-top: 1rem;">
+          <div class="arch-title-row">
+            <h3>Automated Metadata Extraction</h3>
+            <span class="arch-module">src/pack.js</span>
+          </div>
+          <p>The <code>sf-lwc pack &lt;component&gt;</code> command connects to your active Salesforce Org or local SFDX workspace to reverse-engineer and export components with their full dependency graph.</p>
+          <ul>
+            <li><strong>Static AST &amp; Regex Analysis:</strong> Scans LWC templates for child component tags (<code>&lt;c-...&gt;</code>), JavaScript for Apex imports (<code>@salesforce/apex/...</code>), and custom labels (<code>@salesforce/label/c....</code>).</li>
+            <li><strong>Tooling API &amp; Local Matching:</strong> Resolves corresponding Apex classes (<code>.cls</code> and <code>.cls-meta.xml</code>), unit test classes, and custom label XML definitions.</li>
+            <li><strong>Sidecar Generation:</strong> Emits a self-contained <code>.sf-lwc/&lt;name&gt;.json</code> sidecar with exact versions, dependencies, and file listings ready for distribution.</li>
+          </ul>
+        </div>
+
+        <h3 class="arch-subhead">Codebase Anatomy</h3>
+        <p style="color: var(--text-2); max-width: 65ch; margin-bottom: 1rem;">Core module breakdown for contributors navigating the repository:</p>
+
+        <div class="codebase-table-wrap">
+          <table class="codebase-table">
+            <thead>
+              <tr>
+                <th style="width: 16rem;">Module / Path</th>
+                <th>Responsibility &amp; Core Exports</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>bin/sf-lwc.js</code></td>
+                <td>CLI entry point, argument parsing via <code>util.parseArgs</code>, interactive multi-select UI (<code>@clack/prompts</code>), and TTY formatting.</td>
+              </tr>
+              <tr>
+                <td><code>src/source.js</code></td>
+                <td>Source abstractions: <code>createSource()</code>, Codeload archive streaming (<code>fetchTarball</code>, <code>parseTar</code>), native Git clone fallback, local SFDX discovery.</td>
+              </tr>
+              <tr>
+                <td><code>src/resolve.js</code></td>
+                <td>Manifest schema validation (<code>validate</code>), path traversal security guards (<code>safePath</code>), recursive dependency tree resolution, name normalization.</td>
+              </tr>
+              <tr>
+                <td><code>src/install.js</code></td>
+                <td>File copy pipeline, target package directory routing (<code>sfdx-project.json</code>), lockfile reading and atomic writing (<code>readLock</code>, <code>LOCK_FILE</code>).</td>
+              </tr>
+              <tr>
+                <td><code>src/labels.js</code></td>
+                <td>CustomLabels XML parsing and non-destructive merging (<code>mergeCustomLabels</code>).</td>
+              </tr>
+              <tr>
+                <td><code>src/remove.js</code></td>
+                <td>Dependency-graph safety checks (<code>findBlockingDependents</code>), file removal, and lockfile synchronization.</td>
+              </tr>
+              <tr>
+                <td><code>src/diff.js</code></td>
+                <td>Unified line-by-line colored diff comparing local component files against registry versions.</td>
+              </tr>
+              <tr>
+                <td><code>src/doctor.js</code></td>
+                <td>Salesforce DX workspace diagnostics, registry reachability testing, and lockfile file existence verification.</td>
+              </tr>
+              <tr>
+                <td><code>src/pack.js</code></td>
+                <td>Tooling API metadata dependency tracer (Apex classes, tests, labels) and <code>.sf-lwc/</code> sidecar exporter.</td>
+              </tr>
+              <tr>
+                <td><code>packages/plugin-lwc</code></td>
+                <td>Native Salesforce CLI (<code>sf</code>) plugin integration powered by <code>@oclif/core</code> and <code>@salesforce/sf-plugins-core</code>.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
