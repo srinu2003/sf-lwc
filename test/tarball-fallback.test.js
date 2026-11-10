@@ -83,7 +83,7 @@ test('parseTar: correctly parses in-memory tarball into tree and filesMap', () =
   assert.ok(paths.includes('force-app/main/default/lwc/myComp/myComp.js-meta.xml'));
 });
 
-test('source.getTree(): automatically falls back to codeload tarball when GitHub REST API returns 403', async () => {
+test('source.getTree(): prioritizes codeload tarball and never burns api.github.com rate limit unauthenticated', async () => {
   const originalFetch = globalThis.fetch;
   const mockEntries = [
     { name: 'demo-HEAD/sfdx-project.json', content: '{"packageDirectories":[{"path":"force-app"}]}' },
@@ -95,14 +95,6 @@ test('source.getTree(): automatically falls back to codeload tarball when GitHub
   const calls = [];
   globalThis.fetch = async (url) => {
     calls.push(url);
-    if (url.includes('api.github.com/repos/mock-user/mock-lwc-repo/git/trees')) {
-      // Simulate rate limit exceeded
-      return {
-        ok: false,
-        status: 403,
-        headers: new Map([['x-ratelimit-remaining', '0']])
-      };
-    }
     if (url.includes('codeload.github.com/mock-user/mock-lwc-repo/tar.gz')) {
       return {
         ok: true,
@@ -125,9 +117,9 @@ test('source.getTree(): automatically falls back to codeload tarball when GitHub
     const jsContent = await source.read('force-app/main/default/lwc/toastMsg/toastMsg.js');
     assert.equal(jsContent.toString('utf8'), 'export const show = () => {};');
 
-    // Verify calls: REST API was tried first, then codeload tarball succeeded
-    assert.ok(calls.some((u) => u.includes('api.github.com')));
-    assert.ok(calls.some((u) => u.includes('codeload.github.com')));
+    // Verify: api.github.com was NEVER called, protecting user's rate limit quota
+    assert.equal(calls.some((u) => u.includes('api.github.com')), false, 'api.github.com must never be called unauthenticated');
+    assert.ok(calls.some((u) => u.includes('codeload.github.com')), 'codeload must be used directly');
   } finally {
     globalThis.fetch = originalFetch;
   }
