@@ -295,11 +295,13 @@
     const contentKeys = Object.keys(c.contents || {});
     if (contentKeys.length > 0) {
       const firstFile = contentKeys[0];
+      const panelId = 'panel-' + esc(c.name);
       const tabsHtml = contentKeys.map((file, idx) => {
         const selected = idx === 0;
+        const tabId = 'tab-' + esc(c.name) + '-' + idx;
         return (
-          '<button class="tab" type="button" role="tab" data-comp="' + esc(c.name) + '" data-file="' + esc(file) + '" ' +
-          'aria-selected="' + String(selected) + '" tabindex="' + (selected ? '0' : '-1') + '">' +
+          '<button class="tab" type="button" role="tab" id="' + tabId + '" data-comp="' + esc(c.name) + '" data-file="' + esc(file) + '" ' +
+          'aria-selected="' + String(selected) + '" aria-controls="' + panelId + '" tabindex="' + (selected ? '0' : '-1') + '">' +
           esc(baseName(file)) +
           '</button>'
         );
@@ -315,7 +317,7 @@
             '</div>' +
             '<button class="btn-copy" type="button" data-copy-file="' + esc(c.name) + '">Copy file</button>' +
           '</div>' +
-          '<pre tabindex="0" role="tabpanel" aria-label="' + esc(c.name) + ' source code"><code>' + initialCode + '</code></pre>' +
+          '<pre id="' + panelId + '" tabindex="0" role="tabpanel" aria-labelledby="tab-' + esc(c.name) + '-0" aria-label="' + esc(c.name) + ' source code"><code>' + initialCode + '</code></pre>' +
         '</div>'
       );
     }
@@ -453,6 +455,7 @@
       t.tabIndex = on ? 0 : -1;
     });
     const pre = $('pre', viewer);
+    if (tab.id) pre.setAttribute('aria-labelledby', tab.id);
     $('code', pre).innerHTML = highlight(comp.contents[tab.dataset.file] || '', tab.dataset.file);
     pre.scrollTop = 0;
     pre.scrollLeft = 0;
@@ -526,17 +529,24 @@
       }
     });
 
-    // Arrow-key navigation between file tabs
+    // Keyboard navigation between file tabs (WAI-ARIA 1.2: Arrow keys, Home, End)
     document.addEventListener('keydown', (e) => {
       const tab = e.target.closest && e.target.closest('.tab');
-      if (tab && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+      if (tab) {
         const tabs = $$('.tab', tab.closest('.tabs'));
         const i = tabs.indexOf(tab);
-        const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
-        next.focus();
-        selectTab(next);
-        e.preventDefault();
-        return;
+        let next = null;
+        if (e.key === 'ArrowRight') next = tabs[(i + 1) % tabs.length];
+        else if (e.key === 'ArrowLeft') next = tabs[(i + tabs.length - 1) % tabs.length];
+        else if (e.key === 'Home') next = tabs[0];
+        else if (e.key === 'End') next = tabs[tabs.length - 1];
+
+        if (next) {
+          next.focus();
+          selectTab(next);
+          e.preventDefault();
+          return;
+        }
       }
 
       if (e.key === 'Escape') {
