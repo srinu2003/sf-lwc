@@ -1,7 +1,130 @@
-import { readFile, stat, readdir } from 'node:fs/promises';
+import { readFile, stat, readdir, mkdtemp, rm } from 'node:fs/promises';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import zlib from 'node:zlib';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { NAME_RE } from './resolve.js';
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * Parses a standard POSIX ustar / GNU / PAX uncompressed tar buffer in memory.
+ * Extracts a virtual tree array and a files Map of relative paths to Buffer.
+ */
+export function parseTar(tarBuffer) {
+  let offset = 0;
+  let extendedPath = null;
+  const filesMap = new Map();
+  const tree = [];
+
+  while (offset + 512 <= tarBuffer.length) {
+    const header = tarBuffer.subarray(offset, offset + 512);
+    if (header[0] === 0) break;
+
+    const name = header.subarray(0, 100).toString('utf8').replace(/\0.*$/, '');
+    const sizeStr = header.subarray(124, 136).toString('utf8').replace(/\0.*$/, '').trim();
+    const size = parseInt(sizeStr, 8) || 0;
+    const typeflag = String.fromCharCode(header[156]);
+    const prefix = header.subarray(345, 500).toString('utf8').replace(/\0.*$/, '');
+    const dataStart = offset + 512;
+    const dataEnd = dataStart + size;
+
+    if (typeflag === 'x') {
+      const paxStr = tarBuffer.subarray(dataStart, dataEnd).toString('utf8');
+      const match = paxStr.match(/\d+ path=(.+)\n/);
+      if (match) extendedPath = match[1];
+    } else if (typeflag === 'L') {
+      extendedPath = tarBuffer.subarray(dataStart, dataEnd).toString('utf8').replace(/\0.*$/, '').trim();
+    } else {
+      let fullPath = extendedPath || (prefix ? `${prefix}/${name}` : name);
+      extendedPath = null;
+
+      fullPath = fullPath.replace(/\\/g, '/').replace(/^\/+/, '');
+      const slashIdx = fullPath.indexOf('/');
+      const relPath = slashIdx !== -1 ? fullPath.slice(slashIdx + 1) : '';
+
+      if (relPath && (typeflag === '0' || typeflag === '\0')) {
+        const fileContent = Buffer.from(tarBuffer.subarray(dataStart, dataEnd));
+        filesMap.set(relPath, fileContent);
+        tree.push({ path: relPath, type: 'blob', size });
+      } else if (relPath && typeflag === '5') {
+        const cleanDir = relPath.replace(/\/+$/, '');
+        if (cleanDir) {
+          tree.push({ path: cleanDir, type: 'tree' });
+        }
+      }
+    }
+
+    offset += 512 + Math.ceil(size / 512) * 512;
+  }
+
+  return { tree, filesMap };
+}
+
+/**
+ * Downloads and parses repository tarball snapshot from codeload.github.com.
+ * Avoids GitHub REST API rate limits completely.
+ */
+export async function fetchTarball(owner, repo, ref) {
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  const targetRef = ref || 'HEAD';
+  const url = `https://codeload.github.com/${owner}/${repo}/tar.gz/${targetRef}`;
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'sf-lwc',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to download tarball from ${url}: HTTP ${res.status}`);
+  }
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const uncompressed = zlib.gunzipSync(buffer);
+  return parseTar(uncompressed);
+}
+
+/**
+ * Fallback shallow clone via native git CLI into a temporary directory.
+ */
+export async function fetchViaGitClone(owner, repo, ref) {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'sf-lwc-git-'));
+  try {
+    const cloneArgs = ['clone', '--depth', '1', '--single-branch'];
+    if (ref && ref !== 'HEAD') {
+      cloneArgs.push('--branch', ref);
+    }
+    cloneArgs.push(`https://github.com/${owner}/${repo}.git`, tmpDir);
+    await execFileAsync('git', cloneArgs, { windowsHide: true, timeout: 30000 });
+
+    const filesMap = new Map();
+    const tree = [];
+    async function walk(dir, relPrefix = '') {
+      const entries = await readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name === '.git') continue;
+        const full = path.join(dir, entry.name);
+        const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+        const normRel = rel.replace(/\\/g, '/');
+        if (entry.isDirectory()) {
+          tree.push({ path: normRel, type: 'tree' });
+          await walk(full, normRel);
+        } else if (entry.isFile()) {
+          const content = await readFile(full);
+          filesMap.set(normRel, content);
+          tree.push({ path: normRel, type: 'blob', size: content.length });
+        }
+      }
+    }
+    await walk(tmpDir);
+    return { tree, filesMap };
+  } finally {
+    try {
+      await rm(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {}
+  }
+}
 
 /**
  * Normalizes any git or registry specifier (GitHub URL, git SSH, owner/repo)
@@ -159,9 +282,14 @@ export function createSource(rawSpec) {
     spec: rawSpec,
     rawSpec,
     label: `${owner}/${repo}@${ref}`,
+    _filesMap: null,
     async read(rel) {
+      const normRel = rel.replace(/\\/g, '/').replace(/^\/+/, '');
+      if (this._filesMap && this._filesMap.has(normRel)) {
+        return this._filesMap.get(normRel);
+      }
       const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
-      const res = await fetch(base + rel, {
+      const res = await fetch(base + normRel, {
         headers: {
           'User-Agent': 'sf-lwc',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -212,29 +340,50 @@ export function createSource(rawSpec) {
       this._treePromise = (async () => {
         const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
         const targetRef = explicitRef ? encodeURIComponent(explicitRef) : 'HEAD';
-        const url = `${apiBase}/git/trees/${targetRef}?recursive=1`;
-        const res = await fetch(url, {
-          headers: {
-            Accept: 'application/vnd.github+json',
-            'User-Agent': 'sf-lwc',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          }
-        });
-        if (!res.ok) {
-          const displaySpec = specOverride || rawSpec;
-          if (res.status === 403) {
-            const remaining = res.headers.get('x-ratelimit-remaining');
-            if (remaining === '0') {
-              throw new Error('GitHub API rate limit exceeded. Set GITHUB_TOKEN to increase limit.');
+        const displaySpec = specOverride || rawSpec;
+
+        // 1. Primary path: Git Trees REST API (fastest when within quota or authenticated)
+        try {
+          const url = `${apiBase}/git/trees/${targetRef}?recursive=1`;
+          const res = await fetch(url, {
+            headers: {
+              Accept: 'application/vnd.github+json',
+              'User-Agent': 'sf-lwc',
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
             }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            return Array.isArray(data.tree) ? data.tree : [];
           }
-          if (res.status === 404 || res.status === 401 || res.status === 403) {
+          if (res.status === 404 || res.status === 401) {
             throw new Error(`Repository '${displaySpec}' not found or inaccessible (check repository name or set GITHUB_TOKEN for private repos).`);
           }
-          throw new Error(`Failed to fetch tree from ${owner}/${repo}: HTTP ${res.status}`);
+        } catch (err) {
+          if (err.message && err.message.includes('not found or inaccessible')) {
+            throw err;
+          }
         }
-        const data = await res.json();
-        return Array.isArray(data.tree) ? data.tree : [];
+
+        // 2. Fallback 1: Codeload tarball snapshot (no 60 req/hr REST rate limit)
+        try {
+          const tarResult = await fetchTarball(owner, repo, explicitRef);
+          if (tarResult && Array.isArray(tarResult.tree)) {
+            this._filesMap = tarResult.filesMap;
+            return tarResult.tree;
+          }
+        } catch {}
+
+        // 3. Fallback 2: Native git clone --depth 1 (unlimited)
+        try {
+          const gitResult = await fetchViaGitClone(owner, repo, explicitRef);
+          if (gitResult && Array.isArray(gitResult.tree)) {
+            this._filesMap = gitResult.filesMap;
+            return gitResult.tree;
+          }
+        } catch {}
+
+        throw new Error(`Repository '${displaySpec}' not found or inaccessible (check repository name or set GITHUB_TOKEN for private repos).`);
       })();
       return this._treePromise;
     },
