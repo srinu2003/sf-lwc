@@ -249,7 +249,9 @@
   }
 
   function noteHtml(note) {
-    return esc(note).replace(/(&lt;[\s\S]*?&gt;)/g, '<code>$1</code>');
+    return esc(note)
+      .replace(/(&lt;[\s\S]*?&gt;)/g, '<code>$1</code>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>');
   }
 
   function renderComponent(c) {
@@ -385,7 +387,8 @@
       : registry.filter((c) =>
           c.name.toLowerCase().includes(q) ||
           (c.description || '').toLowerCase().includes(q) ||
-          (c.labels || []).some((l) => l.fullName.toLowerCase().includes(q))
+          (c.labels || []).some((l) => l.fullName.toLowerCase().includes(q)) ||
+          (c.files || []).some((f) => f.toLowerCase().includes(q))
         );
     renderNav(items);
     renderComponents(items, raw.trim());
@@ -586,7 +589,7 @@
       return;
     }
 
-    renderHero((registry.find((c) => c.name === 'modal') || registry[0] || {}).name);
+    renderHero((registry.find((c) => c.name === 'dataTable') || registry[0] || {}).name);
     renderNav(registry);
     renderComponents(registry, '');
     observeSections();
