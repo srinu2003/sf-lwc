@@ -105,9 +105,9 @@
     <!-- Main -->
     <main class="content">
       <header class="hero" id="overview">
-        <h1>Composable open-source components for Salesforce DX.</h1>
+        <h1>Composable UI components and companion Apex for Salesforce DX.</h1>
         <p class="lead">
-          Copy accessible SLDS building blocks, resolved Apex dependencies, and Custom Labels straight into your repo with zero runtime overhead.
+          The <code>shadcn/ui</code> model for Salesforce. Copy accessible SLDS building blocks, required Apex controllers, unit tests, and Custom Labels directly into your project. Zero npm wrappers, zero shadow DOM headaches, and zero schema pollution.
         </p>
 
         <div class="hero-badges">
@@ -238,7 +238,7 @@
       <section id="architecture" class="section" aria-labelledby="arch-title">
         <div class="section-head">
           <h2 id="arch-title">Architecture &amp; key mechanics</h2>
-          <p>How sf-lwc works under the hood—from zero-quota tarball streaming to full-stack Salesforce DX metadata installs.</p>
+          <p>Why sf-lwc was built, the Salesforce DX pain points it eliminates, and how the underlying plumbing works.</p>
         </div>
 
         <!-- Architectural Pipeline Flow Diagram -->
@@ -298,14 +298,14 @@
             <span class="arch-num" aria-hidden="true">01</span>
             <div class="arch-content">
               <div class="arch-title-row">
-                <h3>Zero-Rate-Limit Transport</h3>
+                <h3>Zero-Quota Codeload Transport</h3>
                 <span class="arch-module">src/source.js</span>
               </div>
-              <p>GitHub unauthenticated REST APIs limit requests to 60 per hour per IP. When running behind corporate NATs or shared CI runners, that limit hits immediately and breaks installations.</p>
+              <p>Unauthenticated calls to <code>api.github.com</code> are capped at 60 requests per hour per IP. In enterprise networks where 50 developers share the same egress NAT, or inside shared GitHub Actions runners, that limit hits almost instantly and breaks your install.</p>
               <ul>
                 <li><strong>Codeload tarball streaming:</strong> We bypass <code>api.github.com</code> entirely and fetch gzip tarballs directly from <code>codeload.github.com/{owner}/{repo}/tar.gz/{ref}</code> using Node 18 native <code>fetch</code>.</li>
-                <li><strong>In-memory tar parsing:</strong> <code>parseTar()</code> unpacks files into an in-memory virtual map (<code>_filesMap</code>) after buffer decompression via <code>zlib.gunzipSync()</code>. We never hit disk or burn unauthenticated API quota.</li>
-                <li><strong>Native Git fallback:</strong> If corporate proxies block codeload downloads, the runner drops back to <code>git clone --depth 1</code> over HTTPS automatically.</li>
+                <li><strong>In-memory buffer decompression:</strong> <code>zlib.gunzipSync()</code> decompresses the buffer and <code>parseTar()</code> unpacks files into an in-memory virtual map (<code>_filesMap</code>). We never hit disk during extraction and never burn GitHub API tokens.</li>
+                <li><strong>Native Git fallback:</strong> If corporate proxies or firewalls block codeload downloads, the runner drops back to a shallow <code>git clone --depth 1</code> over HTTPS automatically.</li>
               </ul>
             </div>
           </div>
@@ -317,11 +317,11 @@
                 <h3>Apex &amp; Metadata Bundling</h3>
                 <span class="arch-module">src/install.js · src/labels.js</span>
               </div>
-              <p>Lightning Web Components rarely exist alone. Production components depend on Apex controllers, test classes, and Custom Labels. Standard package managers drop JS files and ignore Salesforce metadata.</p>
+              <p>In web dev, a component is just JS and CSS. In Salesforce, an LWC almost never works alone. Production components depend on companion Apex controllers with <code>@AuraEnabled(cacheable=true)</code> methods, <code>@IsTest</code> classes for the 75% deployment coverage gate, and Custom Labels. Standard package managers drop JS files and completely ignore Salesforce metadata.</p>
               <ul>
-                <li><strong>DX project routing:</strong> The installer reads <code>sfdx-project.json</code> to find the default package directory, routing LWC files to <code>lwc/&lt;name&gt;/</code> and Apex to <code>classes/</code>.</li>
-                <li><strong>Non-destructive label merging:</strong> <code>mergeLabels()</code> inspects <code>CustomLabels.labels-meta.xml</code>, skips existing <code>&lt;fullName&gt;</code> entries, and appends new labels right before <code>&lt;/CustomLabels&gt;</code> without rewriting or reformatting existing tags.</li>
-                <li><strong>Lockfile tracking:</strong> Every installed file, version, label, and dependency is recorded in <code>sf-lwc.lock.json</code> for clean diffing and drift prevention.</li>
+                <li><strong>DX project routing:</strong> The installer inspects <code>sfdx-project.json</code> to locate your default package directory, routing LWC bundles to <code>lwc/&lt;name&gt;/</code> and companion Apex controllers and test classes to <code>classes/</code>.</li>
+                <li><strong>Non-destructive label merging:</strong> <code>CustomLabels.labels-meta.xml</code> is a monolithic file. Most tools either overwrite it or reformat existing tags, causing git conflicts. <code>mergeLabels()</code> inspects existing <code>&lt;fullName&gt;</code> tags and appends only missing labels right before <code>&lt;/CustomLabels&gt;</code>—leaving your existing indentation and comments untouched.</li>
+                <li><strong>Deterministic lockfile:</strong> Every installed file, version, label, and dependency is tracked in <code>sf-lwc.lock.json</code> for clean <code>sf-lwc diff</code> comparisons and drift checks via <code>sf-lwc doctor</code>.</li>
               </ul>
             </div>
           </div>
@@ -330,14 +330,14 @@
             <span class="arch-num" aria-hidden="true">03</span>
             <div class="arch-content">
               <div class="arch-title-row">
-                <h3>Sidecar Manifests &amp; Dependency Safety</h3>
+                <h3>Sidecars &amp; Dependency Safety</h3>
                 <span class="arch-module">src/resolve.js · src/remove.js</span>
               </div>
-              <p>Components declare their metadata contracts in <code>.sf-lwc/&lt;name&gt;.json</code> sidecar manifests—companion JSON files storing component version, target API level, Apex companion classes, and Custom Labels without modifying Salesforce's native <code>*-meta.xml</code> descriptors. Keeping contracts in sidecars preserves native DX compatibility and zero-configuration deploys.</p>
+              <p>Salesforce's metadata XML schema is strict: adding custom dependency keys or registry metadata to <code>*-meta.xml</code> causes <code>sf project deploy</code> to fail with schema validation errors. We keep component contracts in companion sidecar files outside the DX source tree.</p>
               <ul>
-                <li><strong>Unmanifested repository synthesis:</strong> When pulling from arbitrary GitHub repositories without <code>.sf-lwc/</code> manifests, the resolver auto-discovers component bundles across the DX project tree dynamically.</li>
-                <li><strong>Path traversal protection:</strong> <code>safePath()</code> validates all declared file paths. Leading slashes, Windows backslashes, and directory escapes (<code>..</code>) are rejected immediately before touching disk.</li>
-                <li><strong>Dependency graph safety:</strong> If component A depends on component B, running <code>sf-lwc remove B</code> is blocked by <code>findBlockingDependents()</code> with an error showing what would break, unless overridden with <code>--force</code>.</li>
+                <li><strong>The <code>.sf-lwc/&lt;name&gt;.json</code> sidecar:</strong> Stores component version, target API level, Apex companion classes, Custom Labels, and dependencies. Salesforce CLI completely ignores <code>.sf-lwc/</code> during deployments, keeping your DX project pure.</li>
+                <li><strong>Unmanifested repository fallback:</strong> When consuming raw GitHub repositories without sidecars, the resolver auto-discovers component bundles across the DX project tree and synthesizes manifests in memory on the fly.</li>
+                <li><strong>Security &amp; dependency protection:</strong> <code>safePath()</code> blocks path traversal attacks (rejecting <code>..</code>, backslashes, and directory escapes before writing to disk). If component A depends on component B, running <code>sf-lwc remove B</code> is blocked by <code>findBlockingDependents()</code> with a clear error showing what would break, unless overridden with <code>--force</code>.</li>
                 <li><strong>Cycle detection:</strong> Recursive manifest resolution tracks visited nodes and stops cyclic dependency loops cleanly before writing to disk.</li>
               </ul>
             </div>
@@ -347,14 +347,14 @@
             <span class="arch-num" aria-hidden="true">04</span>
             <div class="arch-content">
               <div class="arch-title-row">
-                <h3>Live Org Reverse-Engineering</h3>
+                <h3>Live Org Tooling API Introspection</h3>
                 <span class="arch-module">src/pack.js</span>
               </div>
-              <p>The <code>sf-lwc pack</code> command lets you export components directly from an active Salesforce org or local DX project without manually writing manifests.</p>
+              <p>When you finish building a component in a scratch org or sandbox, packaging it to share is tedious. You have to hunt down the LWC files, remember which Apex controller it called, locate the unit tests, and manually copy Custom Labels out of XML. Developers almost always miss something.</p>
               <ul>
-                <li><strong>Tooling API graph introspection:</strong> Queries <code>MetadataComponentDependency</code> to discover companion Apex controllers, unit test classes, and custom label XML definitions.</li>
-                <li><strong>Local mapping:</strong> Resolves discovered metadata dependencies through <code>METADATA_REGISTRY</code> to local package directory paths.</li>
-                <li><strong>Manifest export:</strong> Generates a clean <code>.sf-lwc/&lt;name&gt;.json</code> sidecar with exact versions and file references, ready to share or commit to a registry.</li>
+                <li><strong>Tooling API graph query:</strong> Running <code>sf-lwc pack &lt;component&gt; -o &lt;org&gt;</code> queries <code>MetadataComponentDependency</code> directly in your org to discover companion Apex controllers, unit test classes, and custom label XML definitions.</li>
+                <li><strong>Local package mapping:</strong> Resolves discovered metadata dependencies through <code>METADATA_REGISTRY</code> to local package directory paths in your workspace.</li>
+                <li><strong>Manifest export:</strong> Generates a clean <code>.sf-lwc/&lt;name&gt;.json</code> sidecar with exact versions and file references, ready to share or commit to a community registry.</li>
               </ul>
             </div>
           </div>
@@ -366,11 +366,11 @@
                 <h3>Dual Distribution: Standalone CLI &amp; Native sf Plugin</h3>
                 <span class="arch-module">bin/sf-lwc.js · packages/plugin-lwc</span>
               </div>
-              <p>Developers shouldn't need a heavy toolchain just to try a component, but teams already using Salesforce CLI expect native tooling integration.</p>
+              <p>Freelancers and developers trying a component for five minutes want <code>npx sf-lwc add dataTable</code> with zero global install. Enterprise teams already living in the Salesforce CLI want an official <code>sf</code> plugin (<code>sf lwc add dataTable</code>) that fits into CI/CD pipelines.</p>
               <ul>
-                <li><strong>Zero-install CLI:</strong> <code>npx sf-lwc add &lt;name&gt;</code> runs instantly in any workspace without global npm dependencies.</li>
+                <li><strong>Standalone zero-install CLI:</strong> <code>bin/sf-lwc.js</code> provides instant execution using Node 18 native <code>util.parseArgs</code> and <code>@clack/prompts</code> for interactive terminal multi-select.</li>
                 <li><strong>Official Salesforce CLI plugin:</strong> Six core commands (<code>add</code>, <code>diff</code>, <code>doctor</code>, <code>list</code>, <code>pack</code>, <code>update</code>) plug directly into <code>sf</code> (<code>sf lwc add</code>) via <code>packages/plugin-lwc</code> using <code>@oclif/core</code> and <code>@salesforce/sf-plugins-core</code>.</li>
-                <li><strong>Shared core engine:</strong> Both binaries invoke the exact same core modules (<code>src/</code>) and interactive terminal UI (<code>@clack/prompts</code>), so flags, locks, and behaviors remain identical.</li>
+                <li><strong>Shared core engine:</strong> Both binaries invoke the exact same core modules (<code>src/</code>) for dependency resolution, lockfile tracking, and label merging—ensuring flags and behaviors remain identical.</li>
               </ul>
             </div>
           </div>
