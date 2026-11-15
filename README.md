@@ -87,7 +87,7 @@ sf-lwc add <component> --overwrite
 sf-lwc add <component> --dry-run
 sf-lwc add <component> --json
 ```
-- **Recursive Dependency Resolution**: Resolves child LWC components, Apex classes, Custom Labels, and Static Resources (cycle-safe, dependencies installed first).
+- **Recursive Dependency Resolution**: Resolves child LWC components, Apex classes, Custom Labels, and Static Resources (with cycle detection: rejects circular dependencies, installs dependencies first).
 - **Safe Copy**: Copies files directly to `<package-dir>/main/default/`, skipping existing files unless `--overwrite` is specified.
 - **Label Merging**: Atomically merges Custom Labels into `labels/CustomLabels.labels-meta.xml` without altering existing labels.
 - **Lockfile Tracking**: Records installed files, SHA hashes, and dependency trees in `sf-lwc.lock.json`.
