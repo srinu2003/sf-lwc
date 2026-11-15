@@ -1,6 +1,6 @@
 {
   "name": "plugin-lwc",
-  "version": "0.1.0",
+  "version": "0.2.0-beta.1",
   "description": "Salesforce CLI plugin for sf-lwc: add, diff, update, and manage open-source LWC components in Salesforce DX",
   "type": "module",
   "main": "lib/index.js",
