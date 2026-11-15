@@ -123,9 +123,21 @@ export async function loadManifest(source, name) {
         }
 
         // No explicit manifest: synthesize clean manifest for root LWC bundle only
-        const files = entries
-          .filter((e) => e.isFile())
-          .map((e) => `lwc/${name}/${e.name}`);
+        async function getFilesRecursively(dir, relPrefix = '') {
+          const dirents = await readdir(dir, { withFileTypes: true });
+          const result = [];
+          for (const ent of dirents) {
+            const relPath = relPrefix ? `${relPrefix}/${ent.name}` : ent.name;
+            if (ent.isDirectory()) {
+              result.push(...await getFilesRecursively(path.join(dir, ent.name), relPath));
+            } else if (ent.isFile()) {
+              result.push(relPath);
+            }
+          }
+          return result;
+        }
+        const relFiles = await getFilesRecursively(compDir);
+        const files = relFiles.map((rel) => `lwc/${name}/${rel.replace(/\\/g, '/')}`);
 
         let apiVersion = '62.0';
         let description = `Component from ${source.label}`;
@@ -199,7 +211,7 @@ export async function loadManifest(source, name) {
           const prefixMatch = `${prefix}/${name}/`;
           entries = tree
             .filter((i) => i.path.startsWith(prefixMatch) && i.type === 'blob')
-            .map((i) => ({ name: path.basename(i.path), type: 'file' }));
+            .map((i) => ({ name: i.path.slice(prefixMatch.length).replace(/\\/g, '/'), type: 'file' }));
         } else if (typeof source.fetchApi === 'function') {
           entries = await source.fetchApi(`contents/${prefix}/${name}`);
         }
