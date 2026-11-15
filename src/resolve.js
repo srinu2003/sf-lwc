@@ -77,6 +77,61 @@ export async function verifySourceProject(source) {
   }
 }
 
+async function getFilesRecursively(dir, relPrefix = '') {
+  const dirents = await readdir(dir, { withFileTypes: true });
+  const result = [];
+  for (const ent of dirents) {
+    const relPath = relPrefix ? `${relPrefix}/${ent.name}` : ent.name;
+    if (ent.isDirectory()) {
+      result.push(...await getFilesRecursively(path.join(dir, ent.name), relPath));
+    } else if (ent.isFile()) {
+      result.push(relPath);
+    }
+  }
+  return result;
+}
+
+async function expandFilesLocal(root, rawPrefix, name, files) {
+  const result = [];
+  for (const f of files) {
+    if (f === `lwc/${name}`) {
+      const compDir = path.join(root, rawPrefix);
+      if (fs.existsSync(compDir)) {
+        const relFiles = await getFilesRecursively(compDir);
+        result.push(...relFiles.map((r) => `lwc/${name}/${r.replace(/\\/g, '/')}`));
+      } else {
+        result.push(f);
+      }
+    } else {
+      result.push(f);
+    }
+  }
+  return [...new Set(result)];
+}
+
+async function expandFilesRemote(source, rawPrefix, name, files) {
+  const result = [];
+  for (const f of files) {
+    if (f === `lwc/${name}` && typeof source.getTree === 'function') {
+      try {
+        const tree = await source.getTree();
+        const prefixMatch = `${rawPrefix}/`;
+        const matching = tree
+          .filter((i) => i.path.startsWith(prefixMatch) && i.type === 'blob')
+          .map((i) => `lwc/${name}/${i.path.slice(prefixMatch.length).replace(/\\/g, '/')}`);
+        if (matching.length) {
+          result.push(...matching);
+          continue;
+        }
+      } catch {}
+      result.push(f);
+    } else {
+      result.push(f);
+    }
+  }
+  return [...new Set(result)];
+}
+
 export async function loadManifest(source, name) {
   if (!NAME_RE.test(name)) throw new Error(`Invalid component name "${name}"`);
 
@@ -119,23 +174,11 @@ export async function loadManifest(source, name) {
           packedManifest._rawPrefix = `${prefix}/${name}`;
           packedManifest._packageDefault = pkgPrefix;
           validate(packedManifest, name);
+          packedManifest.files = await expandFilesLocal(source.root, packedManifest._rawPrefix, name, packedManifest.files);
           return packedManifest;
         }
 
         // No explicit manifest: synthesize clean manifest for root LWC bundle only
-        async function getFilesRecursively(dir, relPrefix = '') {
-          const dirents = await readdir(dir, { withFileTypes: true });
-          const result = [];
-          for (const ent of dirents) {
-            const relPath = relPrefix ? `${relPrefix}/${ent.name}` : ent.name;
-            if (ent.isDirectory()) {
-              result.push(...await getFilesRecursively(path.join(dir, ent.name), relPath));
-            } else if (ent.isFile()) {
-              result.push(relPath);
-            }
-          }
-          return result;
-        }
         const relFiles = await getFilesRecursively(compDir);
         const files = relFiles.map((rel) => `lwc/${name}/${rel.replace(/\\/g, '/')}`);
 
@@ -249,6 +292,7 @@ export async function loadManifest(source, name) {
             packedManifest._rawPrefix = `${prefix}/${name}`;
             packedManifest._packageDefault = pkgPrefix;
             validate(packedManifest, name);
+            packedManifest.files = await expandFilesRemote(source, packedManifest._rawPrefix, name, packedManifest.files);
             return packedManifest;
           }
 

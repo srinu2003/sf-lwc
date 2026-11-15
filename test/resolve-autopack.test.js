@@ -124,3 +124,44 @@ test('unmanifested component synthesizes clean root LWC bundle without guessing 
     fs.rmSync(tmpSource, { recursive: true, force: true });
   }
 });
+
+test('manifest with directory bundle entry (lwc/myComp) expands to all files in directory including subdirectories', async () => {
+  const tmpSource = fs.mkdtempSync(path.join(os.tmpdir(), 'sfdx-dir-bundle-'));
+  try {
+    fs.writeFileSync(
+      path.join(tmpSource, 'sfdx-project.json'),
+      JSON.stringify({ packageDirectories: [{ path: 'force-app', default: true }] })
+    );
+
+    const lwcDir = path.join(tmpSource, 'force-app', 'main', 'default', 'lwc', 'folderComp');
+    const testDir = path.join(lwcDir, '__tests__');
+    fs.mkdirSync(testDir, { recursive: true });
+    fs.writeFileSync(path.join(lwcDir, 'folderComp.html'), '<template></template>');
+    fs.writeFileSync(path.join(lwcDir, 'folderComp.js'), 'export default class {}');
+    fs.writeFileSync(path.join(testDir, 'folderComp.test.js'), '// test');
+
+    const dotSfLwc = path.join(tmpSource, '.sf-lwc');
+    fs.mkdirSync(dotSfLwc, { recursive: true });
+    fs.writeFileSync(
+      path.join(dotSfLwc, 'folderComp.json'),
+      JSON.stringify({
+        name: 'folderComp',
+        version: '1.0.0',
+        apiVersion: '62.0',
+        files: ['lwc/folderComp']
+      })
+    );
+
+    const source = createSource(tmpSource);
+    const manifest = await loadManifest(source, 'folderComp');
+
+    assert.equal(manifest.name, 'folderComp');
+    assert.deepEqual(manifest.files.sort(), [
+      'lwc/folderComp/__tests__/folderComp.test.js',
+      'lwc/folderComp/folderComp.html',
+      'lwc/folderComp/folderComp.js'
+    ]);
+  } finally {
+    fs.rmSync(tmpSource, { recursive: true, force: true });
+  }
+});
