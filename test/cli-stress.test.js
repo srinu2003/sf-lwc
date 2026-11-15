@@ -608,3 +608,13 @@ test('stress: cli add from empty local registry throws descriptive error', async
   }
 });
 
+test('cli --version and -v return package version', async () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+
+  const { stdout: stdoutLong } = await execFileAsync('node', [BIN, '--version']);
+  assert.equal(stdoutLong.trim(), pkg.version);
+
+  const { stdout: stdoutShort } = await execFileAsync('node', [BIN, '-v']);
+  assert.equal(stdoutShort.trim(), pkg.version);
+});
+

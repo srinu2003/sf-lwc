@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
@@ -15,6 +16,8 @@ import { diff } from '../src/diff.js';
 import { update } from '../src/update.js';
 import { doctor } from '../src/doctor.js';
 import { selectComponents, isInteractiveSession } from '../src/selector.js';
+
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 const RESET = '\x1b[0m';
 const BOLD = '\x1b[1m';
@@ -99,6 +102,7 @@ ${BOLD}Options:${RESET}
   --force                     force overwrite (init) or remove with dependents
   --json                      output results in machine-readable JSON
   --cwd <dir>                 project directory (default: current directory)
+  -v, --version               show version number
   -h, --help                  show this help
 `;
 
@@ -124,9 +128,15 @@ async function main() {
       all: { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
       cwd: { type: 'string', default: process.cwd() },
-      help: { type: 'boolean', short: 'h', default: false }
+      help: { type: 'boolean', short: 'h', default: false },
+      version: { type: 'boolean', short: 'v', default: false }
     }
   });
+
+  if (values.version) {
+    console.log(pkg.version);
+    return;
+  }
 
   const [cmd, ...names] = positionals;
   if (values.help || !cmd) {
