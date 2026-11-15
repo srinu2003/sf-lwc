@@ -30,12 +30,19 @@ function createTempProject(prefix = 'sf-lwc-plugin-test-') {
   return tmpProject;
 }
 
+function safeCleanDir(dir) {
+  try {
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 200 });
+  } catch {}
+}
+
 test('plugin-lwc command classes load and initialize successfully', async () => {
   const addMod = await import(pathToFileURL(path.join(pluginDir, 'lib', 'commands', 'lwc', 'add.js')).href);
   const diffMod = await import(pathToFileURL(path.join(pluginDir, 'lib', 'commands', 'lwc', 'diff.js')).href);
   const doctorMod = await import(pathToFileURL(path.join(pluginDir, 'lib', 'commands', 'lwc', 'doctor.js')).href);
   const listMod = await import(pathToFileURL(path.join(pluginDir, 'lib', 'commands', 'lwc', 'list.js')).href);
   const packMod = await import(pathToFileURL(path.join(pluginDir, 'lib', 'commands', 'lwc', 'pack.js')).href);
+  const removeMod = await import(pathToFileURL(path.join(pluginDir, 'lib', 'commands', 'lwc', 'remove.js')).href);
   const updateMod = await import(pathToFileURL(path.join(pluginDir, 'lib', 'commands', 'lwc', 'update.js')).href);
 
   assert.ok(addMod.default);
@@ -51,6 +58,9 @@ test('plugin-lwc command classes load and initialize successfully', async () => 
   assert.equal(typeof listMod.default.summary, 'string');
   assert.ok(packMod.default);
   assert.equal(typeof packMod.default.summary, 'string');
+  assert.ok(removeMod.default);
+  assert.equal(typeof removeMod.default.summary, 'string');
+  assert.equal(removeMod.default.args.component.required, true);
   assert.ok(updateMod.default);
   assert.equal(typeof updateMod.default.summary, 'string');
 });
@@ -67,6 +77,7 @@ test('sf lwc command responds to --help via linked plugin', async (t) => {
     assert.match(stdout, /lwc doctor/);
     assert.match(stdout, /lwc list/);
     assert.match(stdout, /lwc pack/);
+    assert.match(stdout, /lwc remove/);
     assert.match(stdout, /lwc update/);
   } catch (err) {
     if (err.code === 'ENOENT') {
@@ -219,7 +230,7 @@ test('LwcAdd programmatic execution supports multiple space-separated and comma-
     assert.deepEqual(commaNames.map(n => n.toLowerCase().replace(/[-_]/g, '')), ['modal', 'toastutils']);
   } finally {
     process.chdir(prevCwd);
-    fs.rmSync(tmpProject, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    safeCleanDir(tmpProject);
   }
 });
 
@@ -259,6 +270,39 @@ test('sf lwc add modal --dry-run --json via CLI produces clean JSON without stdo
     throw err;
   } finally {
     process.exitCode = prevExitCode;
-    fs.rmSync(tmpProject, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    safeCleanDir(tmpProject);
+  }
+});
+
+test('LwcRemove programmatic execution removes component and updates lockfile', async () => {
+  const LwcAdd = (await import(pathToFileURL(path.join(pluginDir, 'lib', 'commands', 'lwc', 'add.js')).href)).default;
+  const LwcRemove = (await import(pathToFileURL(path.join(pluginDir, 'lib', 'commands', 'lwc', 'remove.js')).href)).default;
+
+  const tmpProject = createTempProject('sf-lwc-plugin-rm-');
+  const prevCwd = process.cwd();
+
+  try {
+    process.chdir(tmpProject);
+
+    // 1. Install component
+    await LwcAdd.run(['modal', '--from', FIXTURE_REPO]);
+    const lockPath = path.join(tmpProject, 'sf-lwc.lock.json');
+    assert.ok(fs.existsSync(lockPath));
+    const lockBefore = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+    assert.ok(lockBefore.components.modal);
+
+    // 2. Remove component with LwcRemove
+    const rmResult = await LwcRemove.run(['modal']);
+    assert.equal(rmResult.ok, true);
+    assert.deepEqual(rmResult.removed, ['modal']);
+    assert.equal(rmResult.dryRun, false);
+
+    // 3. Verify files and lockfile (when 0 components remain, lockfile is cleanly unlinked)
+    assert.equal(fs.existsSync(lockPath), false, 'Lockfile unlinked when 0 components remain');
+    const modalJs = path.join(tmpProject, 'force-app', 'main', 'default', 'lwc', 'modal', 'modal.js');
+    assert.equal(fs.existsSync(modalJs), false);
+  } finally {
+    process.chdir(prevCwd);
+    safeCleanDir(tmpProject);
   }
 });

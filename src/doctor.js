@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, readdir } from 'node:fs/promises';
 import { findProject } from './project.js';
 import { readConfig } from './init.js';
 import { readLock, LOCK_FILE } from './install.js';
@@ -153,6 +153,49 @@ export async function doctor(options = {}) {
         message: `Could not read CustomLabels: ${err.message}`
       });
     }
+  }
+
+  // 5. Validate sidecar manifests (.sf-lwc/*.json) against schema
+  const sidecarDir = path.join(project.root, '.sf-lwc');
+  if (await exists(sidecarDir)) {
+    try {
+      const dirEntries = await readdir(sidecarDir);
+      const jsonFiles = dirEntries.filter((f) => f.endsWith('.json'));
+      for (const jf of jsonFiles) {
+        const fullJsonPath = path.join(sidecarDir, jf);
+        try {
+          const raw = await readFile(fullJsonPath, 'utf8');
+          const mf = JSON.parse(raw);
+          const errors = [];
+          if (!mf.name || typeof mf.name !== 'string') errors.push('missing or invalid "name"');
+          if (!mf.version || !/^\d+\.\d+\.\d+$/.test(mf.version)) errors.push('invalid "version" (must be semver x.y.z)');
+          if (!mf.apiVersion || !/^\d+\.0$/.test(mf.apiVersion)) errors.push('invalid "apiVersion" (must be format NN.0)');
+          if (!Array.isArray(mf.files) || mf.files.length === 0) errors.push('missing or empty "files" array');
+
+          if (errors.length > 0) {
+            allOk = false;
+            checks.push({
+              name: `manifest:.sf-lwc/${jf}`,
+              status: 'fail',
+              message: `Manifest schema violation: ${errors.join(', ')}`
+            });
+          } else {
+            checks.push({
+              name: `manifest:.sf-lwc/${jf}`,
+              status: 'pass',
+              message: `Valid component manifest for "${mf.name}@${mf.version}".`
+            });
+          }
+        } catch (parseErr) {
+          allOk = false;
+          checks.push({
+            name: `manifest:.sf-lwc/${jf}`,
+            status: 'fail',
+            message: `Malformed JSON: ${parseErr.message}`
+          });
+        }
+      }
+    } catch {}
   }
 
   return { ok: allOk, checks };

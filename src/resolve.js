@@ -287,7 +287,17 @@ export async function loadManifest(source, name) {
       if (matched && matched !== name) {
         return await loadManifest(source, matched);
       }
-    } catch {}
+    } catch (err) {
+      if (err.message && (
+        err.message.includes('rate limit exceeded') ||
+        err.message.includes('not found or inaccessible') ||
+        err.message.includes('ECONNREFUSED') ||
+        err.message.includes('ENOTFOUND') ||
+        err.message.includes('ETIMEDOUT')
+      )) {
+        throw err;
+      }
+    }
   }
 
   throw new Error(`Component "${name}" not found in repository (${source.label}).`);

@@ -45,11 +45,19 @@ export function parseTar(tarBuffer) {
       const slashIdx = fullPath.indexOf('/');
       const relPath = slashIdx !== -1 ? fullPath.slice(slashIdx + 1) : '';
 
-      if (relPath && (typeflag === '0' || typeflag === '\0')) {
+      // Security guard: Prevent directory traversal (e.g. ../, escaping segments, or absolute paths)
+      const normalizedPosix = relPath ? path.posix.normalize(relPath) : '';
+      const isSafe = relPath &&
+        !path.posix.isAbsolute(normalizedPosix) &&
+        !normalizedPosix.startsWith('../') &&
+        normalizedPosix !== '..' &&
+        !normalizedPosix.split('/').includes('..');
+
+      if (isSafe && (typeflag === '0' || typeflag === '\0')) {
         const fileContent = Buffer.from(tarBuffer.subarray(dataStart, dataEnd));
         filesMap.set(relPath, fileContent);
         tree.push({ path: relPath, type: 'blob', size });
-      } else if (relPath && typeflag === '5') {
+      } else if (isSafe && typeflag === '5') {
         const cleanDir = relPath.replace(/\/+$/, '');
         if (cleanDir) {
           tree.push({ path: cleanDir, type: 'tree' });

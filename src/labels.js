@@ -35,7 +35,7 @@ export function pruneLabels(xml, names) {
   const removed = [];
   const missing = [];
   for (const name of names) {
-    const re = new RegExp(`\\s*<labels>[\\s\\S]*?<fullName>\\s*${escRe(name)}\\s*</fullName>[\\s\\S]*?<\\/labels>\\s*`, 'm');
+    const re = new RegExp(`\\s*<labels>(?:(?!<\\/?labels>)[\\s\\S])*?<fullName>\\s*${escRe(name)}\\s*<\\/fullName>(?:(?!<\\/?labels>)[\\s\\S])*?<\\/labels>\\s*`, 'm');
     if (!re.test(out)) {
       missing.push(name);
       continue;

@@ -112,3 +112,49 @@ test('doctor detects missing tracked files from lockfile', async () => {
     await rm(projectRoot, { recursive: true, force: true });
   }
 });
+
+
+test('doctor validates .sf-lwc sidecar manifests against schema requirements', async () => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'sf-lwc-doctor-schema-'));
+  try {
+    await mkdir(path.join(tmpDir, 'force-app', 'main', 'default'), { recursive: true });
+    await writeFile(
+      path.join(tmpDir, 'sfdx-project.json'),
+      JSON.stringify({ packageDirectories: [{ path: 'force-app', default: true }], sourceApiVersion: '62.0' })
+    );
+
+    // Create .sf-lwc with one valid and one invalid manifest
+    const sfLwcDir = path.join(tmpDir, '.sf-lwc');
+    await mkdir(sfLwcDir, { recursive: true });
+    await writeFile(
+      path.join(sfLwcDir, 'validComp.json'),
+      JSON.stringify({
+        name: 'validComp',
+        version: '1.0.0',
+        apiVersion: '62.0',
+        files: ['lwc/validComp/validComp.js']
+      })
+    );
+    await writeFile(
+      path.join(sfLwcDir, 'brokenComp.json'),
+      JSON.stringify({
+        name: 'brokenComp',
+        version: 'invalid-semver',
+        files: []
+      })
+    );
+
+    const res = await doctor({ cwd: tmpDir });
+    assert.equal(res.ok, false);
+    const validCheck = res.checks.find((c) => c.name === 'manifest:.sf-lwc/validComp.json');
+    assert.ok(validCheck);
+    assert.equal(validCheck.status, 'pass');
+
+    const brokenCheck = res.checks.find((c) => c.name === 'manifest:.sf-lwc/brokenComp.json');
+    assert.ok(brokenCheck);
+    assert.equal(brokenCheck.status, 'fail');
+    assert.match(brokenCheck.message, /Manifest schema violation/);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});

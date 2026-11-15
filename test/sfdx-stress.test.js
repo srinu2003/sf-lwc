@@ -100,8 +100,8 @@ test('stress: remote SFDX repo (svierk/awesome-lwc-collection) lists in < 3s wit
     ], { cwd: root, timeout: 20000 });
     output = res.stdout;
   } catch (err) {
-    if (err.message.includes('rate limit exceeded') || err.code === 'ENOTFOUND') {
-      t.skip('Skipped live network due to GitHub rate limit or offline: ' + err.message);
+    if (err.message.includes('rate limit exceeded') || err.code === 'ENOTFOUND' || err.code === 'ETIMEDOUT' || err.killed) {
+      t.skip('Skipped live network due to GitHub rate limit, timeout, or offline: ' + err.message);
       return;
     }
     throw err;
@@ -167,6 +167,10 @@ test('stress: remote non-LWC repo (facebook/react) fails immediately with exact 
       'facebook/react'
     ], { cwd: root, timeout: 10000 });
   } catch (err) {
+    if (err.killed || err.code === 'ETIMEDOUT') {
+      t.skip('Skipped live network due to timeout: ' + err.message);
+      return;
+    }
     exitCode = err.code ?? 1;
     errOutput = (err.stderr || '') + (err.stdout || '');
   }
@@ -224,6 +228,10 @@ test('stress: remote non-existent repo fails immediately with 404 / inaccessible
       'nonexistent-user/nonexistent-repo-998877'
     ], { cwd: root, timeout: 10000 });
   } catch (err) {
+    if (err.killed || err.code === 'ETIMEDOUT') {
+      t.skip('Skipped live CLI due to timeout: ' + err.message);
+      return;
+    }
     exitCode = err.code ?? 1;
     errOutput = (err.stderr || '') + (err.stdout || '');
   }

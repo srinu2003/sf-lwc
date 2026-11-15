@@ -83,6 +83,24 @@ test('parseTar: correctly parses in-memory tarball into tree and filesMap', () =
   assert.ok(paths.includes('force-app/main/default/lwc/myComp/myComp.js-meta.xml'));
 });
 
+test('parseTar: blocks path traversal attempts and ignores escape paths', () => {
+  const maliciousEntries = [
+    { name: 'repo-HEAD/', isDir: true },
+    { name: 'repo-HEAD/../../etc/passwd', content: 'root:x:0:0' },
+    { name: 'repo-HEAD/sub/../../escape.json', content: '{"evil":true}' },
+    { name: 'repo-HEAD/valid/validFile.js', content: 'console.log("ok");' }
+  ];
+
+  const tarBuffer = createMockTar(maliciousEntries);
+  const { tree, filesMap } = parseTar(tarBuffer);
+
+  assert.equal(filesMap.size, 1);
+  assert.equal(filesMap.has('valid/validFile.js'), true);
+  assert.equal(filesMap.has('../../etc/passwd'), false);
+  assert.equal(filesMap.has('escape.json'), false);
+  assert.equal(tree.some((t) => t.path.includes('..')), false);
+});
+
 test('source.getTree(): prioritizes codeload tarball and never burns api.github.com rate limit unauthenticated', async () => {
   const originalFetch = globalThis.fetch;
   const mockEntries = [

@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { findProject } from './project.js';
@@ -148,10 +148,16 @@ export const METADATA_REGISTRY = {
 // HELPER UTILITIES
 // ─────────────────────────────────────────────────────────────────────────────
 function defaultRunToolingQuery(query, targetOrg) {
-  const orgArg = targetOrg ? ` --target-org "${targetOrg}"` : '';
-  const escapedQuery = query.replace(/"/g, '\\"');
-  const cmd = `sf data query --use-tooling-api${orgArg} --query "${escapedQuery}" --json`;
-  const output = execSync(cmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+  const args = ['data', 'query', '--use-tooling-api', '--query', query, '--json'];
+  if (targetOrg) {
+    args.push('--target-org', targetOrg);
+  }
+  const cmd = process.platform === 'win32' ? 'sf.cmd' : 'sf';
+  const output = execFileSync(cmd, args, {
+    encoding: 'utf-8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    shell: process.platform === 'win32'
+  });
   const parsed = JSON.parse(output);
   if (parsed.status !== 0) {
     throw new Error(parsed.message || 'Tooling query failed');
