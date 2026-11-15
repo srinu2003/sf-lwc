@@ -46,7 +46,7 @@
     "@oclif/core": "^5.0.0",
     "@salesforce/core": "^9.4.0",
     "@salesforce/sf-plugins-core": "^13.0.0",
-    "sf-lwc": "file:../.."
+    "sf-lwc": "^0.2.0-beta.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
