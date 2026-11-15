@@ -1,0 +1,480 @@
+{
+  "commands": {
+    "lwc:add": {
+      "aliases": [],
+      "args": {
+        "sourceOrComponent": {
+          "description": "GitHub repository (URL or owner/repo), local SFDX path, or component name.",
+          "name": "sourceOrComponent",
+          "required": false
+        },
+        "component": {
+          "description": "Component name to install when a repository is provided as the first argument. If omitted in an interactive terminal, launches an interactive selector.",
+          "name": "component",
+          "required": false
+        }
+      },
+      "description": "Downloads component source files from an upstream Git repository or local SFDX project, recursively resolves dependencies, merges Custom Labels, and registers installed items in sf-lwc.lock.json.\n\nSupports passing the repository or project directly as the first argument, or via --from. When run without a component name in an interactive terminal, launches an interactive fuzzy-searchable multi-component selector.",
+      "examples": [
+        "<%= config.bin %> <%= command.id %> svierk/awesome-lwc-collection qrCodeGenerator",
+        "<%= config.bin %> <%= command.id %> https://github.com/svierk/awesome-lwc-collection",
+        "<%= config.bin %> <%= command.id %> ../DocuMake-DocAgent bw_DocuMakeAgent",
+        "<%= config.bin %> <%= command.id %> qrCodeGenerator --from svierk/awesome-lwc-collection"
+      ],
+      "flags": {
+        "json": {
+          "description": "Format output as json.",
+          "helpGroup": "GLOBAL",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "flags-dir": {
+          "helpGroup": "GLOBAL",
+          "name": "flags-dir",
+          "summary": "Import flag values from a directory.",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "from": {
+          "char": "f",
+          "name": "from",
+          "summary": "Upstream GitHub repository (owner/repo or owner/repo@tag, GitHub URL) or local SFDX project path.",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "overwrite": {
+          "char": "w",
+          "name": "overwrite",
+          "summary": "Overwrite existing component files without prompting.",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "dry-run": {
+          "name": "dry-run",
+          "summary": "Simulate installation and preview file and label changes without writing to disk.",
+          "allowNo": false,
+          "type": "boolean"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "lwc:add",
+      "pluginAlias": "plugin-lwc",
+      "pluginName": "plugin-lwc",
+      "pluginType": "core",
+      "strict": false,
+      "summary": "Add open-source Lightning Web Components to your Salesforce DX project.",
+      "enableJsonFlag": true,
+      "isESM": true,
+      "relativePath": [
+        "lib",
+        "commands",
+        "lwc",
+        "add.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "lwc:add",
+        "add:lwc"
+      ]
+    },
+    "lwc:diff": {
+      "aliases": [],
+      "args": {
+        "component": {
+          "description": "Component name to diff (e.g. modal).",
+          "name": "component",
+          "required": true
+        }
+      },
+      "description": "Compares each tracked file for a component against the original source from the registry using standard unified diff format.",
+      "examples": [
+        "<%= config.bin %> <%= command.id %> modal",
+        "<%= config.bin %> <%= command.id %> modal --json"
+      ],
+      "flags": {
+        "json": {
+          "description": "Format output as json.",
+          "helpGroup": "GLOBAL",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "flags-dir": {
+          "helpGroup": "GLOBAL",
+          "name": "flags-dir",
+          "summary": "Import flag values from a directory.",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "from": {
+          "char": "f",
+          "name": "from",
+          "summary": "Upstream GitHub repository or local path to diff against.",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "lwc:diff",
+      "pluginAlias": "plugin-lwc",
+      "pluginName": "plugin-lwc",
+      "pluginType": "core",
+      "strict": true,
+      "summary": "Show unified line-by-line diff between locally customized components and the upstream registry.",
+      "enableJsonFlag": true,
+      "isESM": true,
+      "relativePath": [
+        "lib",
+        "commands",
+        "lwc",
+        "diff.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "lwc:diff",
+        "diff:lwc"
+      ]
+    },
+    "lwc:doctor": {
+      "aliases": [],
+      "args": {},
+      "description": "Runs diagnostic checks verifying DX project package root directories, registry connectivity, and physical presence of all files tracked in sf-lwc.lock.json.",
+      "examples": [
+        "<%= config.bin %> <%= command.id %>",
+        "<%= config.bin %> <%= command.id %> --json"
+      ],
+      "flags": {
+        "json": {
+          "description": "Format output as json.",
+          "helpGroup": "GLOBAL",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "flags-dir": {
+          "helpGroup": "GLOBAL",
+          "name": "flags-dir",
+          "summary": "Import flag values from a directory.",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "lwc:doctor",
+      "pluginAlias": "plugin-lwc",
+      "pluginName": "plugin-lwc",
+      "pluginType": "core",
+      "strict": true,
+      "summary": "Diagnose Salesforce DX project health, lockfile integrity, and component registry connectivity.",
+      "enableJsonFlag": true,
+      "isESM": true,
+      "relativePath": [
+        "lib",
+        "commands",
+        "lwc",
+        "doctor.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "lwc:doctor",
+        "doctor:lwc"
+      ]
+    },
+    "lwc:list": {
+      "aliases": [
+        "lwc:ls"
+      ],
+      "args": {
+        "source": {
+          "description": "Upstream GitHub repository or local path",
+          "name": "source",
+          "required": false
+        }
+      },
+      "description": "Queries a GitHub repository (registry layout or standard SFDX force-app/main/default/lwc) or local folder to discover available Lightning Web Components.",
+      "examples": [
+        "<%= config.bin %> <%= command.id %>",
+        "<%= config.bin %> <%= command.id %> --from owner/repo",
+        "<%= config.bin %> <%= command.id %> --from https://github.com/svierk/awesome-lwc-collection.git"
+      ],
+      "flags": {
+        "json": {
+          "description": "Format output as json.",
+          "helpGroup": "GLOBAL",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "flags-dir": {
+          "helpGroup": "GLOBAL",
+          "name": "flags-dir",
+          "summary": "Import flag values from a directory.",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "from": {
+          "char": "f",
+          "name": "from",
+          "summary": "Upstream GitHub repository (owner/repo[@ref], GitHub URL) or local registry path.",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "lwc:list",
+      "pluginAlias": "plugin-lwc",
+      "pluginName": "plugin-lwc",
+      "pluginType": "core",
+      "strict": false,
+      "summary": "List available components from a remote or local LWC registry.",
+      "enableJsonFlag": true,
+      "isESM": true,
+      "relativePath": [
+        "lib",
+        "commands",
+        "lwc",
+        "list.js"
+      ],
+      "aliasPermutations": [
+        "lwc:ls",
+        "ls:lwc"
+      ],
+      "permutations": [
+        "lwc:list",
+        "list:lwc"
+      ]
+    },
+    "lwc:pack": {
+      "aliases": [],
+      "args": {
+        "component": {
+          "description": "Root component bundle name to pack.",
+          "name": "component",
+          "required": true
+        }
+      },
+      "description": "Uses Salesforce Tooling API dependency introspection to traverse related Apex classes, Custom Labels, and child LWCs, outputting a distribution bundle with manifest.json.",
+      "examples": [
+        "<%= config.bin %> <%= command.id %> myComponent -o myOrg",
+        "<%= config.bin %> <%= command.id %> myComponent --dry-run"
+      ],
+      "flags": {
+        "json": {
+          "description": "Format output as json.",
+          "helpGroup": "GLOBAL",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "flags-dir": {
+          "helpGroup": "GLOBAL",
+          "name": "flags-dir",
+          "summary": "Import flag values from a directory.",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "target-org": {
+          "char": "o",
+          "name": "target-org",
+          "noCacheDefault": true,
+          "summary": "Username or alias of the target scratch org or sandbox used for dependency introspection.",
+          "hasDynamicHelp": true,
+          "multiple": false,
+          "type": "option"
+        },
+        "output": {
+          "char": "d",
+          "name": "output",
+          "summary": "Output directory for the packaged component.",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "overwrite": {
+          "char": "w",
+          "name": "overwrite",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "dry-run": {
+          "name": "dry-run",
+          "allowNo": false,
+          "type": "boolean"
+        }
+      },
+      "hasDynamicHelp": true,
+      "hiddenAliases": [],
+      "id": "lwc:pack",
+      "pluginAlias": "plugin-lwc",
+      "pluginName": "plugin-lwc",
+      "pluginType": "core",
+      "strict": true,
+      "summary": "Trace and package local LWC dependencies into a reusable component bundle.",
+      "enableJsonFlag": true,
+      "isESM": true,
+      "relativePath": [
+        "lib",
+        "commands",
+        "lwc",
+        "pack.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "lwc:pack",
+        "pack:lwc"
+      ]
+    },
+    "lwc:remove": {
+      "aliases": [
+        "lwc:rm"
+      ],
+      "args": {
+        "component": {
+          "description": "Name of the component to remove (e.g. modal).",
+          "name": "component",
+          "required": true
+        }
+      },
+      "description": "Uninstalls components tracked in sf-lwc.lock.json, deletes unshared files and labels, prunes empty directories, and updates the lockfile. Shared dependencies required by other installed components are safely retained unless --force is specified.",
+      "examples": [
+        "<%= config.bin %> <%= command.id %> modal",
+        "<%= config.bin %> <%= command.id %> modal --force",
+        "<%= config.bin %> <%= command.id %> modal --dry-run",
+        "<%= config.bin %> <%= command.id %> modal --json"
+      ],
+      "flags": {
+        "json": {
+          "description": "Format output as json.",
+          "helpGroup": "GLOBAL",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "flags-dir": {
+          "helpGroup": "GLOBAL",
+          "name": "flags-dir",
+          "summary": "Import flag values from a directory.",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "force": {
+          "char": "f",
+          "name": "force",
+          "summary": "Force removal even if other installed components depend on this component.",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "dry-run": {
+          "name": "dry-run",
+          "summary": "Simulate component removal without deleting files or modifying the lockfile.",
+          "allowNo": false,
+          "type": "boolean"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "lwc:remove",
+      "pluginAlias": "plugin-lwc",
+      "pluginName": "plugin-lwc",
+      "pluginType": "core",
+      "strict": true,
+      "summary": "Remove installed Lightning Web Components from your Salesforce DX project.",
+      "enableJsonFlag": true,
+      "isESM": true,
+      "relativePath": [
+        "lib",
+        "commands",
+        "lwc",
+        "remove.js"
+      ],
+      "aliasPermutations": [
+        "lwc:rm",
+        "rm:lwc"
+      ],
+      "permutations": [
+        "lwc:remove",
+        "remove:lwc"
+      ]
+    },
+    "lwc:update": {
+      "aliases": [],
+      "args": {
+        "component": {
+          "description": "Optional component name to update",
+          "name": "component",
+          "required": false
+        }
+      },
+      "description": "Inspects version declarations in sf-lwc.lock.json against upstream registry manifests, updates component files, and preserves Custom Labels.",
+      "examples": [
+        "<%= config.bin %> <%= command.id %> --all",
+        "<%= config.bin %> <%= command.id %> modal"
+      ],
+      "flags": {
+        "json": {
+          "description": "Format output as json.",
+          "helpGroup": "GLOBAL",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "flags-dir": {
+          "helpGroup": "GLOBAL",
+          "name": "flags-dir",
+          "summary": "Import flag values from a directory.",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "all": {
+          "name": "all",
+          "summary": "Update all installed components listed in the lockfile.",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "dry-run": {
+          "name": "dry-run",
+          "summary": "Preview updates without modifying local project files.",
+          "allowNo": false,
+          "type": "boolean"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "lwc:update",
+      "pluginAlias": "plugin-lwc",
+      "pluginName": "plugin-lwc",
+      "pluginType": "core",
+      "strict": true,
+      "summary": "Upgrade installed components to the latest version from the registry.",
+      "enableJsonFlag": true,
+      "isESM": true,
+      "relativePath": [
+        "lib",
+        "commands",
+        "lwc",
+        "update.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "lwc:update",
+        "update:lwc"
+      ]
+    }
+  },
+  "version": "0.1.0"
+}

@@ -10,7 +10,7 @@
     "oclif.manifest.json"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && oclif manifest",
     "clean": "node -e \"fs.rmSync('lib', { recursive: true, force: true })\"",
     "prepare": "npm run build",
     "prepack": "npm run build"
@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "oclif": "^6.0.15",
     "tsx": "^4.23.15",
     "typescript": "^5.6.0"
   },
